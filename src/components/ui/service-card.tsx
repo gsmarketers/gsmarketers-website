@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import { ArrowUpRight } from "lucide-react";
 import { BorderTrail } from "./border-trail";
@@ -13,15 +14,17 @@ interface ServiceCardProps {
     href?: string;
 }
 
-export function ServiceCard({
+export function ServiceCard({ 
     title,
     subtitle,
     image,
     badge,
-    href = "#contact",
+    href = "/contact",
 }: ServiceCardProps) {
+    const navigate = useNavigate();
+
     return (
-        <a href={href} className="block w-full group">
+        <button onClick={() => navigate(href)} className="block w-full group cursor-pointer">
             <div
                 className={cn(
                     "relative overflow-hidden rounded-2xl",
@@ -86,6 +89,6 @@ export function ServiceCard({
                     </div>
                 </div>
             </div>
-        </a>
+        </button>
     );
 }
