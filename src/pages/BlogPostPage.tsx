@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { getPost, formatDate, sanitizeHtml, type WordPressPost } from '@/lib/wordpress';
+import { getPost, type NotionPost } from '@/lib/notion';
+import { format as formatDate } from 'date-fns';
 import { ArrowLeft, Calendar, User2 } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 
 const BlogPostPage = () => {
   const { slug } = useParams<{ slug: string }>();
-  const [post, setPost] = useState<WordPressPost | null>(null);
+  const [post, setPost] = useState<NotionPost | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,8 +81,9 @@ const BlogPostPage = () => {
 
           <h1
             className="text-3xl md:text-4xl font-semibold mb-6 text-white"
-            dangerouslySetInnerHTML={{ __html: post.title.rendered }}
-          />
+          >
+            {post.title}
+          </h1>
 
           <div className="flex items-center gap-4 text-white/60 mb-8">
             <div className="flex items-center gap-2">
@@ -96,11 +98,11 @@ const BlogPostPage = () => {
             )}
           </div>
 
-          {featuredImage && (
+          {post.coverImage && (
             <div className="relative h-[400px] mb-8 rounded-2xl overflow-hidden">
               <img
-                src={featuredImage}
-                alt={post.title.rendered}
+                src={post.coverImage}
+                alt={post.title}
                 className="absolute inset-0 w-full h-full object-cover"
               />
             </div>
@@ -116,8 +118,9 @@ const BlogPostPage = () => {
                      prose-code:text-cyan-400 prose-pre:bg-white/5
                      prose-ol:text-white/80 prose-ul:text-white/80
                      prose-li:marker:text-cyan-400"
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.content.rendered) }}
-          />
+          >
+            {post.content}
+          </div>
         </motion.div>
       </article>
     </div>
