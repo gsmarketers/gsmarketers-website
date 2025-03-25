@@ -52,7 +52,12 @@ export async function getPosts(page = 1, perPage = 10): Promise<{
 
   try {
     const response = await fetch(
-      `${WORDPRESS_API_URL}/wp/v2/posts?_embed&page=${page}&per_page=${perPage}`
+      `${WORDPRESS_API_URL}/posts?_embed&page=${page}&per_page=${perPage}`,
+      {
+        headers: {
+          'Accept': 'application/json'
+        }
+      }
     );
     
     if (!response.ok) {
@@ -77,7 +82,12 @@ export async function getPost(slug: string): Promise<WordPressPost | null> {
 
   try {
     const response = await fetch(
-      `${WORDPRESS_API_URL}/wp/v2/posts?_embed&slug=${slug}`
+      `${WORDPRESS_API_URL}/posts?_embed&slug=${slug}`,
+      {
+        headers: {
+          'Accept': 'application/json'
+        }
+      }
     );
     
     if (!response.ok) {
