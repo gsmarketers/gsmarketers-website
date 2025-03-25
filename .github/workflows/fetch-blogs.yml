@@ -4,12 +4,17 @@ on:
   repository_dispatch:
     types: [wordpress_update]
   schedule:
-    - cron: "0 */6 * * *" # Runs every 6 hours as backup
+    - cron: "0 */2 * * *" # Runs every 2 hours as backup
   workflow_dispatch: # Manual trigger
+  
+env:
+  POST_ID: ${{ github.event.client_payload.Post_Id }}
+  POST_STATUS: ${{ github.event.client_payload.Post_Post_Status }}
 
 jobs:
   update-blog:
     runs-on: ubuntu-latest
+    if: github.event.client_payload.Post_Post_Status == 'publish' || github.event_name != 'repository_dispatch'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -29,16 +34,22 @@ jobs:
           const { Octokit } = require('@octokit/rest');
           
           const octokit = new Octokit({
-            auth: process.env.GITHUB_TOKEN
+            auth: process.env.GITHUB_TOKEN,
           });
           
           const OWNER = 'gsmarketers';
           const REPO = 'gsmarketers-website';
+          const POST_ID = process.env.POST_ID;
           
           async function fetchPosts() {
             try {
+              // If POST_ID is provided, fetch only that post
+              const endpoint = POST_ID 
+                ? `${process.env.WORDPRESS_API_URL}/posts/${POST_ID}?_embed`
+                : `${process.env.WORDPRESS_API_URL}/posts?_embed`;
+                
               const response = await axios.get(
-                `${process.env.WORDPRESS_API_URL}/posts?_embed`,
+                endpoint,
                 {
                   headers: {
                     'Accept': 'application/json',
@@ -47,7 +58,10 @@ jobs:
                 }
               );
               
-              for (const post of response.data) {
+              // Handle both single post and multiple posts responses
+              const posts = Array.isArray(response.data) ? response.data : [response.data];
+              
+              for (const post of posts) {
                 const content = `---
 title: "${post.title.rendered.replace(/"/g, '\\"')}"
 date: "${post.date}"
