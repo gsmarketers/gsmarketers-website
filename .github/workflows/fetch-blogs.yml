@@ -32,13 +32,13 @@ jobs:
             auth: process.env.GITHUB_TOKEN
           });
           
-          const OWNER = process.env.GITHUB_REPOSITORY.split('/')[0];
-          const REPO = process.env.GITHUB_REPOSITORY.split('/')[1];
+          const OWNER = 'gsmarketers';
+          const REPO = 'gsmarketers-website';
           
           async function fetchPosts() {
             try {
               const response = await axios.get(
-                process.env.WORDPRESS_API_URL,
+                `${process.env.WORDPRESS_API_URL}/posts?_embed`,
                 {
                   headers: {
                     'Accept': 'application/json',
