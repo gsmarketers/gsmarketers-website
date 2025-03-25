@@ -1,20 +1,13 @@
-name: Fetch WordPress Blogs
+name: Fetch Notion Blogs
 
 on:
-  repository_dispatch:
-    types: [wordpress_update]
   schedule:
-    - cron: "0 */2 * * *" # Runs every 2 hours as backup
-  workflow_dispatch: # Manual trigger
-  
-env:
-  POST_ID: ${{ github.event.client_payload.Post_Id }}
-  POST_STATUS: ${{ github.event.client_payload.Post_Post_Status }}
+    - cron: "0 */2 * * *"  # Runs every 2 hours
+  workflow_dispatch:        # Manual trigger
 
 jobs:
   update-blog:
     runs-on: ubuntu-latest
-    if: github.event.client_payload.Post_Post_Status == 'publish' || github.event_name != 'repository_dispatch'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -25,96 +18,10 @@ jobs:
           node-version: '20'
           
       - name: Install Dependencies
-        run: npm install axios @octokit/rest
+        run: npm install @notionhq/client
         
       - name: Fetch and Update Posts
-        run: |
-          cat > fetch-posts.js << 'EOF'
-          const axios = require('axios');
-          const { Octokit } = require('@octokit/rest');
-          
-          const octokit = new Octokit({
-            auth: process.env.GITHUB_TOKEN,
-          });
-          
-          const OWNER = 'gsmarketers';
-          const REPO = 'gsmarketers-website';
-          const POST_ID = process.env.POST_ID;
-          
-          async function fetchPosts() {
-            try {
-              // If POST_ID is provided, fetch only that post
-              const endpoint = POST_ID 
-                ? `${process.env.WORDPRESS_API_URL}/posts/${POST_ID}?_embed`
-                : `${process.env.WORDPRESS_API_URL}/posts?_embed`;
-                
-              const response = await axios.get(
-                endpoint,
-                {
-                  headers: {
-                    'Accept': 'application/json',
-                    'Authorization': `Bearer ${process.env.WORDPRESS_TOKEN}`
-                  }
-                }
-              );
-              
-              // Handle both single post and multiple posts responses
-              const posts = Array.isArray(response.data) ? response.data : [response.data];
-              
-              for (const post of posts) {
-                const content = `---
-title: "${post.title.rendered.replace(/"/g, '\\"')}"
-date: "${post.date}"
-excerpt: "${post.excerpt.rendered.replace(/<[^>]*>/g, '').replace(/"/g, '\\"').trim()}"
-featuredImage: "${post._embedded?.['wp:featuredmedia']?.[0]?.source_url || ''}"
-author: "${post._embedded?.author?.[0]?.name || ''}"
----
-
-${post.content.rendered}`;
-
-                try {
-                  // Try to get existing file
-                  const { data: existingFile } = await octokit.rest.repos.getContent({
-                    owner: OWNER,
-                    repo: REPO,
-                    path: `src/content/blog/${post.slug}.md`,
-                  });
-
-                  // Update existing file
-                  await octokit.rest.repos.createOrUpdateFileContents({
-                    owner: OWNER,
-                    repo: REPO,
-                    path: `src/content/blog/${post.slug}.md`,
-                    message: `Update blog post: ${post.title.rendered}`,
-                    content: Buffer.from(content).toString('base64'),
-                    sha: existingFile.sha,
-                  });
-                } catch (error) {
-                  if (error.status === 404) {
-                    // Create new file
-                    await octokit.rest.repos.createOrUpdateFileContents({
-                      owner: OWNER,
-                      repo: REPO,
-                      path: `src/content/blog/${post.slug}.md`,
-                      message: `Add new blog post: ${post.title.rendered}`,
-                      content: Buffer.from(content).toString('base64'),
-                    });
-                  } else {
-                    throw error;
-                  }
-                }
-              }
-            } catch (error) {
-              console.error('Error:', error);
-              process.exit(1);
-            }
-          }
-
-          fetchPosts();
-          EOF
-          
-          node fetch-posts.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          WORDPRESS_API_URL: ${{ secrets.WORDPRESS_API_URL }}
-          WORDPRESS_TOKEN: ${{ secrets.WORDPRESS_TOKEN }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+        run: node scripts/fetch-posts.js
