@@ -68,12 +68,12 @@ export function ServiceCard({
                 )}
 
                 <div className="absolute bottom-0 left-0 right-0 p-5">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1.5">
-                            <h3 className="text-lg font-semibold text-white leading-snug">
+                            <h3 className="text-lg font-semibold text-white leading-snug text-left">
                                 {title}
                             </h3>
-                            <p className="text-sm text-zinc-300 line-clamp-2">
+                            <p className="text-sm text-zinc-300 line-clamp-2 text-left">
                                 {subtitle}
                             </p>
                         </div>
