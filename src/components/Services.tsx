@@ -1,9 +1,12 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ServiceCard } from './ui/service-card';
 import { GoldText } from './ui/gold-text';
 import { ButtonColorful } from './ui/button-colorful';
 
 const Services = () => {
+  const navigate = useNavigate();
+
   return (
     <section id="services" className="py-24 relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -36,7 +39,7 @@ const Services = () => {
         <div className="flex justify-center mt-16">
           <ButtonColorful
             label="Start Landing Clients Today"
-            onClick={() => window.location.href = '/contact'}
+            onClick={() => navigate('/contact')}
             className="h-12 px-8"
           />
         </div>
