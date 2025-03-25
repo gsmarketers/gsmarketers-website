@@ -1,8 +1,11 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Hero as UIHero } from './ui/Hero';
 import { ButtonColorful } from './ui/button-colorful';
 
 const Hero = () => {
+  const navigate = useNavigate();
+
   return (
     <UIHero
       title={
@@ -17,7 +20,7 @@ const Hero = () => {
       action={
         <ButtonColorful
           label="Get 5-10 Clients Now"
-          onClick={() => window.location.href = '/contact'}
+          onClick={() => navigate('/contact')}
           variant="hero"
           className="h-14 px-10 text-lg font-semibold tracking-wide"
         />
