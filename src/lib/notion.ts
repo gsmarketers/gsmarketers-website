@@ -13,7 +13,13 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
   totalPages: number;
 }> {
   try {
-    const response = await fetch('/blog-posts.json');
+    const response = await fetch('/blog-posts.json', {
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      }
+    });
+    
     if (!response.ok) {
       throw new Error('Failed to fetch blog posts');
     }
@@ -36,7 +42,13 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
 
 export async function getPost(slug: string): Promise<NotionPost | null> {
   try {
-    const response = await fetch('/blog-posts.json');
+    const response = await fetch('/blog-posts.json', {
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      }
+    });
+    
     if (!response.ok) {
       throw new Error('Failed to fetch blog posts');
     }
