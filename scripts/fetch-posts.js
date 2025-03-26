@@ -1,7 +1,8 @@
 import { Client } from '@notionhq/client';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath, dirname } from 'url';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,14 +24,18 @@ async function fetchPosts() {
   try {
     // Get existing posts to compare
     const existingPosts = new Map();
-    if (fs.existsSync(BLOG_DIR)) {
-      fs.readdirSync(BLOG_DIR).forEach(file => {
-        if (file.endsWith('.md')) {
-          const content = fs.readFileSync(path.join(BLOG_DIR, file), 'utf8');
-          const slug = file.replace('.md', '');
-          existingPosts.set(slug, content);
-        }
-      });
+    try {
+      if (fs.existsSync(BLOG_DIR)) {
+        fs.readdirSync(BLOG_DIR).forEach(file => {
+          if (file.endsWith('.md')) {
+            const content = fs.readFileSync(path.join(BLOG_DIR, file), 'utf8');
+            const slug = file.replace('.md', '');
+            existingPosts.set(slug, content);
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('Warning: Could not read existing posts:', err);
     }
 
     const response = await notion.databases.query({
