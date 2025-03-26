@@ -40,6 +40,7 @@ async function fetchPosts() {
 
     const response = await notion.databases.query({
       database_id: process.env.NOTION_DATABASE_ID,
+      filter_properties: ['Title', 'Published Date', 'Page Content', 'CoverImage', 'Slug'],
       filter: {
         and: [
           {
@@ -68,8 +69,11 @@ async function fetchPosts() {
     for (const page of response.results) {
       // Add delay between processing each post to avoid rate limits
       await delay(500);
-
       try {
+        // Safely get title
+        const title = page.properties?.Title?.title?.[0]?.plain_text || 'Untitled';
+        const slug = page.properties?.Slug?.rich_text?.[0]?.plain_text || page.id;
+        
         const blocks = await notion.blocks.children.list({
           block_id: page.id
         });
@@ -105,15 +109,14 @@ async function fetchPosts() {
         }));
 
         const post = {
-          title: page.properties.Title.title[0]?.plain_text || 'Untitled',
+          title,
           date: page.properties['Published Date']?.date?.start || new Date().toISOString(),
-          pageContent: page.properties['Page Content']?.rich_text[0]?.plain_text || '',
-          coverImage: page.properties.CoverImage?.files[0]?.file?.url || '',
+          pageContent: page.properties?.['Page Content']?.rich_text?.[0]?.plain_text || '',
+          coverImage: page.properties?.CoverImage?.files?.[0]?.file?.url || '',
           lastEdited: page.last_edited_time,
           content: content.join('')
         };
 
-        const slug = page.properties.Slug.rich_text[0]?.plain_text || page.id;
         const filePath = path.join(BLOG_DIR, `${slug}.md`);
 
         const markdown = `---
@@ -149,6 +152,7 @@ ${post.content}`;
       } catch (error) {
         console.error(`Error processing post ${page.id}:`, error);
         // Continue with next post instead of failing completely
+        console.log('Skipping post due to error');
         continue;
       }
     }
