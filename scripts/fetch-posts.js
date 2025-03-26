@@ -16,8 +16,23 @@ const notion = new Client({
   auth: process.env.NOTION_TOKEN
 });
 
+// Helper function to add delay between API calls
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function fetchPosts() {
   try {
+    // Get existing posts to compare
+    const existingPosts = new Map();
+    if (fs.existsSync(BLOG_DIR)) {
+      fs.readdirSync(BLOG_DIR).forEach(file => {
+        if (file.endsWith('.md')) {
+          const content = fs.readFileSync(path.join(BLOG_DIR, file), 'utf8');
+          const slug = file.replace('.md', '');
+          existingPosts.set(slug, content);
+        }
+      });
+    }
+
     const response = await notion.databases.query({
       database_id: process.env.NOTION_DATABASE_ID,
       filter: {
@@ -35,61 +50,93 @@ async function fetchPosts() {
     });
 
     for (const page of response.results) {
-      const blocks = await notion.blocks.children.list({
-        block_id: page.id
-      });
-      
-      const content = await Promise.all(blocks.results.map(async (block) => {
-        switch (block.type) {
-          case 'paragraph':
-            return block.paragraph.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-          case 'heading_1':
-            return '# ' + block.heading_1.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-          case 'heading_2':
-            return '## ' + block.heading_2.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-          case 'heading_3':
-            return '### ' + block.heading_3.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-          case 'bulleted_list_item':
-            return '- ' + block.bulleted_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
-          case 'numbered_list_item':
-            return '1. ' + block.numbered_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
-          case 'code':
-            return '```\n' + block.code.rich_text.map((text) => text.plain_text).join('') + '\n```\n\n';
-          case 'quote':
-            return '> ' + block.quote.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-          case 'image':
-            const imageUrl = block.image.type === 'external' ? block.image.external.url : block.image.file.url;
-            const caption = block.image.caption?.length ? block.image.caption[0].plain_text : '';
-            return `![${caption}](${imageUrl})\n\n`;
-          default:
-            return '';
-        }
-      }));
+      // Add delay between processing each post to avoid rate limits
+      await delay(500);
 
-      const post = {
-        title: page.properties.Title.title[0]?.plain_text || 'Untitled',
-        date: page.properties.Date.date.start,
-        excerpt: page.properties.Excerpt.rich_text[0]?.plain_text || '',
-        coverImage: page.properties.CoverImage?.files[0]?.file?.url || '',
-        author: page.properties.Author.rich_text[0]?.plain_text || 'Anonymous',
-        content
-      };
+      try {
+        const blocks = await notion.blocks.children.list({
+          block_id: page.id
+        });
+        
+        const content = await Promise.all(blocks.results.map(async (block) => {
+          // Add small delay between block processing
+          await delay(100);
+          
+          switch (block.type) {
+            case 'paragraph':
+              return block.paragraph.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+            case 'heading_1':
+              return '# ' + block.heading_1.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+            case 'heading_2':
+              return '## ' + block.heading_2.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+            case 'heading_3':
+              return '### ' + block.heading_3.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+            case 'bulleted_list_item':
+              return '- ' + block.bulleted_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
+            case 'numbered_list_item':
+              return '1. ' + block.numbered_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
+            case 'code':
+              return '```\n' + block.code.rich_text.map((text) => text.plain_text).join('') + '\n```\n\n';
+            case 'quote':
+              return '> ' + block.quote.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+            case 'image':
+              const imageUrl = block.image.type === 'external' ? block.image.external.url : block.image.file.url;
+              const caption = block.image.caption?.length ? block.image.caption[0].plain_text : '';
+              return `![${caption}](${imageUrl})\n\n`;
+            default:
+              return '';
+          }
+        }));
 
-      const slug = page.properties.Slug.rich_text[0]?.plain_text || page.id;
-      const filePath = path.join(BLOG_DIR, `${slug}.md`);
+        const post = {
+          title: page.properties.Title.title[0]?.plain_text || 'Untitled',
+          date: page.properties.Date.date.start,
+          excerpt: page.properties.Excerpt.rich_text[0]?.plain_text || '',
+          coverImage: page.properties.CoverImage?.files[0]?.file?.url || '',
+          author: page.properties.Author.rich_text[0]?.plain_text || 'Anonymous',
+          lastEdited: page.last_edited_time,
+          content: content.join('')
+        };
 
-      const markdown = `---
+        const slug = page.properties.Slug.rich_text[0]?.plain_text || page.id;
+        const filePath = path.join(BLOG_DIR, `${slug}.md`);
+
+        const markdown = `---
 title: "${post.title.replace(/"/g, '\\"')}"
 date: "${post.date}"
 excerpt: "${post.excerpt.replace(/"/g, '\\"')}"
 coverImage: "${post.coverImage}"
 author: "${post.author}"
+lastEdited: "${post.lastEdited}"
 ---
 
 ${post.content}`;
 
-      fs.writeFileSync(filePath, markdown, 'utf8');
-      console.log(`Saved: ${filePath}`);
+        // Only write if content has changed
+        const existingContent = existingPosts.get(slug);
+        if (!existingContent || existingContent !== markdown) {
+          // Create backup before writing
+          if (fs.existsSync(filePath)) {
+            const backupPath = path.join(BLOG_DIR, '.backups');
+            if (!fs.existsSync(backupPath)) {
+              fs.mkdirSync(backupPath);
+            }
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            fs.copyFileSync(filePath, path.join(backupPath, `${slug}-${timestamp}.md`));
+          }
+
+          // Write new content
+          fs.writeFileSync(filePath, markdown, 'utf8');
+          console.log(`Updated: ${filePath}`);
+        } else {
+          console.log(`No changes for: ${slug}`);
+        }
+
+      } catch (error) {
+        console.error(`Error processing post ${page.id}:`, error);
+        // Continue with next post instead of failing completely
+        continue;
+      }
     }
   } catch (error) {
     console.error('Error:', error);
