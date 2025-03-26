@@ -1,22 +1,29 @@
 name: Fetch Notion Blogs
 
 on:
+  repository_dispatch:
+    types: [notion_update]
   schedule:
-    - cron: "*/5 * * * *"   # Runs every 5 minutes
+    - cron: '*/5 * * * *'   # Runs every 5 minutes
   workflow_dispatch:        # Manual trigger
 
 jobs:
   update-blog:
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
         
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
           
       - name: Install Dependencies
         run: |
@@ -60,3 +67,17 @@ jobs:
               fi
             fi
           done
+
+      - name: Commit and Push Changes
+        if: success()
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          if [[ -n $(git status -s) ]]; then
+            git add src/content/blog/
+            git commit -m "Update blog posts from Notion [skip ci]"
+            git push
+          else
+            echo "No changes to commit"
+          fi
