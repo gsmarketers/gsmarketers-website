@@ -3,14 +3,21 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { mkdir, writeFile } from 'fs/promises';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const BLOG_DIR = path.join(__dirname, '../src/content/blog');
+const PUBLIC_DIR = path.join(__dirname, '../public');
+const POSTS_JSON_PATH = path.join(PUBLIC_DIR, 'blog-posts.json');
 
 if (!fs.existsSync(BLOG_DIR)) {
   fs.mkdirSync(BLOG_DIR, { recursive: true });
+}
+
+if (!fs.existsSync(PUBLIC_DIR)) {
+  fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 }
 
 const notion = new Client({
@@ -37,6 +44,9 @@ async function fetchPosts() {
     } catch (err) {
       console.warn('Warning: Could not read existing posts:', err);
     }
+
+    // Array to store processed posts for JSON
+    const processedPosts = [];
 
     const response = await notion.databases.query({
       database_id: process.env.NOTION_DATABASE_ID,
@@ -144,6 +154,17 @@ ${post.content}`;
           console.log(`No changes for: ${slug}`);
         }
 
+        // Add processed post to array for JSON
+        processedPosts.push({
+          id: page.id,
+          slug,
+          title: post.title,
+          content: post.content,
+          thumbnail: post.thumbnail,
+          date: post.date,
+          lastEdited: post.lastEdited
+        });
+
       } catch (error) {
         console.error(`Error processing post ${page.id}:`, error);
         // Continue with next post instead of failing completely
@@ -151,10 +172,17 @@ ${post.content}`;
         continue;
       }
     }
+
+    // Write processed posts to JSON file
+    await writeFile(
+      POSTS_JSON_PATH,
+      JSON.stringify({ posts: processedPosts }, null, 2),
+      'utf8'
+    );
+    console.log(`Generated static blog posts JSON at ${POSTS_JSON_PATH}`);
+
   } catch (error) {
     console.error('Error:', error);
     process.exit(1);
   }
 }
-
-fetchPosts();
