@@ -1,93 +1,49 @@
 name: Fetch Notion Blogs
 
 on:
-  repository_dispatch:
-    types: [notion_update]
   schedule:
-    - cron: '*/10 * * * *'   # Runs every 10 minutes
+    - cron: "*/10 * * * *"  # Runs every 10 minutes
   workflow_dispatch:        # Manual trigger
 
 jobs:
   update-blog:
     runs-on: ubuntu-latest
-    environment: production
-    permissions:
-      contents: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
         
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '18'
           
       - name: Install Dependencies
         run: |
-          echo "Installing dependencies..."
           npm install @notionhq/client
           npm install dotenv
         
       - name: Create Backup Directory
-        run: |
-          echo "Creating backup directory..."
-          mkdir -p src/content/blog/.backups
+        run: mkdir -p src/content/blog/.backups
         
       - name: Fetch and Update Posts
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-          NODE_ENV: production
         run: |
-          echo "🚀 Starting sync at $(date)"
-          
-          # Verify environment variables
-          if [ -z "$NOTION_TOKEN" ]; then
-            echo "❌ Error: NOTION_TOKEN is not set"
-            exit 1
-          fi
-          
-          if [ -z "$NOTION_DATABASE_ID" ]; then
-            echo "❌ Error: NOTION_DATABASE_ID is not set"
-            exit 1
-          fi
-          
-          echo "✅ Environment variables verified"
+          # Add timestamp to run
+          echo "Starting sync at $(date)"
           
           # Run with retries
           for i in {1..3}; do
-            echo "📝 Attempt $i of 3..."
             if node scripts/fetch-posts.js; then
-              echo "✅ Sync completed successfully on attempt $i"
+              echo "✅ Sync completed successfully"
               break
             else
-              echo "⚠️ Attempt $i failed"
-              echo "🔄 Retrying in 30 seconds..."
+              echo "❌ Attempt $i failed, retrying in 30 seconds..."
               sleep 30
               if [ $i -eq 3 ]; then
-                echo "❌ Error: All retry attempts failed"
+                echo "❌ All retry attempts failed"
                 exit 1
               fi
             fi
           done
-
-      - name: Commit and Push Changes
-        if: success()
-        run: |
-          echo "📦 Preparing to commit changes..."
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          
-          if [[ -n $(git status -s) ]]; then
-            echo "💾 Changes detected, committing..."
-            git add src/content/blog/
-            git commit -m "Update blog posts from Notion [skip ci]"
-            echo "🚀 Pushing changes..."
-            git push
-            echo "✅ Changes pushed successfully"
-          else
-            echo "ℹ️ No changes to commit"
-          fi
