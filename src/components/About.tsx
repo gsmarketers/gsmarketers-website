@@ -39,7 +39,7 @@ const About = () => {
           className="mb-16"
         />
 
-        <div className="text-center">
+        <div className="text-center px-4 md:px-0">
           <ShimmerText className="text-xl md:text-2xl italic">
             Growth shouldn't be complicated. We make it simple—and effective.
           </ShimmerText>
