@@ -41,17 +41,28 @@ async function fetchPosts() {
     const response = await notion.databases.query({
       database_id: process.env.NOTION_DATABASE_ID,
       filter: {
-        property: 'Status',
-        status: {
-          equals: 'Published'
-        }
+        and: [
+          {
+            property: 'Published',
+            checkbox: {
+              equals: true
+            }
+          },
+          {
+            property: 'Published Date',
+            date: {
+              is_not_empty: true
+            }
+          }
+        ]
       },
       sorts: [
         {
           property: 'Published Date',
           direction: 'descending'
         }
-      ]
+      ],
+      page_size: 100
     });
 
     for (const page of response.results) {
@@ -95,10 +106,9 @@ async function fetchPosts() {
 
         const post = {
           title: page.properties.Title.title[0]?.plain_text || 'Untitled',
-          date: page.properties['Published Date'].date.start,
-          excerpt: page.properties.Excerpt.rich_text[0]?.plain_text || '',
+          date: page.properties['Published Date']?.date?.start || new Date().toISOString(),
+          pageContent: page.properties['Page Content']?.rich_text[0]?.plain_text || '',
           coverImage: page.properties.CoverImage?.files[0]?.file?.url || '',
-          author: page.properties.Author.rich_text[0]?.plain_text || 'Anonymous',
           lastEdited: page.last_edited_time,
           content: content.join('')
         };
@@ -109,9 +119,8 @@ async function fetchPosts() {
         const markdown = `---
 title: "${post.title.replace(/"/g, '\\"')}"
 date: "${post.date}"
-excerpt: "${post.excerpt.replace(/"/g, '\\"')}"
+pageContent: "${post.pageContent.replace(/"/g, '\\"')}"
 coverImage: "${post.coverImage}"
-author: "${post.author}"
 lastEdited: "${post.lastEdited}"
 ---
 
