@@ -10,7 +10,7 @@ export interface NotionPost {
   title: string;
   pageContent: string;
   content: string;
-  coverImage?: string;
+  thumbnail?: string;
   date: string;
   published: boolean;
 }
@@ -65,7 +65,7 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
           slug: page.properties.Slug?.rich_text[0]?.plain_text || page.id,
           title: page.properties.Title?.title[0]?.plain_text || 'Untitled',
           content,
-          coverImage: page.properties.CoverImage?.files[0]?.file?.url || undefined,
+          thumbnail: page.properties.Thumbnail?.files[0]?.file?.url || undefined,
           date: page.properties['Published Date']?.date?.start || new Date().toISOString(),
           published: page.properties.Published?.checkbox || false
         };
@@ -123,7 +123,7 @@ export async function getPost(slug: string): Promise<NotionPost | null> {
       title: page.properties.Title?.title[0]?.plain_text || 'Untitled',
       pageContent: page.properties['Page Content']?.rich_text[0]?.plain_text || '',
       content,
-      coverImage: page.properties.CoverImage?.files[0]?.file?.url || undefined,
+      thumbnail: page.properties.Thumbnail?.files[0]?.file?.url || undefined,
       date: page.properties['Published Date']?.date?.start || new Date().toISOString(),
       published: page.properties.Published?.checkbox || false
     };
