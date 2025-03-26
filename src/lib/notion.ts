@@ -27,20 +27,19 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
     const response = await notion.databases.query({
       database_id: import.meta.env.VITE_NOTION_DATABASE_ID,
       page_size: pageSize,
-      filter_properties: ['Title', 'Page Content', 'Slug', 'Published', 'Published Date', 'Thumbnail'],
       filter: {
         and: [
           {
-            property: 'Published',
-            checkbox: {
-              equals: true
-            }
-          },
+            property: 'Title',
+            title: {
+              is_not_empty: true
+            },
+          }
         ]
       },
       sorts: [
         {
-          property: 'Published Date',
+          timestamp: 'created_time',
           direction: 'descending'
         }
       ]
@@ -50,11 +49,9 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
       response.results.map(async (page: any) => {
         // Safely extract properties with fallbacks
         const properties = page.properties || {};
-        const title = properties.Title?.title?.[0]?.plain_text || 'Untitled';
-        const slug = properties.Slug?.rich_text?.[0]?.plain_text || page.id;
-        const pageContent = properties['Page Content']?.rich_text?.[0]?.plain_text || '';
-        const publishedDate = properties['Published Date']?.date?.start;
-        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
+        const title = properties?.Title?.title?.[0]?.plain_text || 'Untitled';
+        const pageContent = properties?.['Page Content']?.rich_text?.[0]?.plain_text || '';
+        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
         // Get the page content blocks
         const blocks = await notion.blocks.children.list({
@@ -69,9 +66,8 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
           title,
           pageContent,
           content,
-          thumbnail: thumbnail || undefined,
-          date: publishedDate || new Date().toISOString(),
-          published: properties.Published?.checkbox || false
+          date: page.created_time,
+          published: true
         };
       })
     );
