@@ -1,8 +1,18 @@
 import { Client } from '@notionhq/client';
 
-const notion = new Client({
-  auth: import.meta.env.VITE_NOTION_TOKEN
-});
+const notion = new Client({ 
+  auth: import.meta.env.VITE_NOTION_TOKEN,
+  fetch: (url, init) => {
+    return fetch(url, {
+      ...init,
+      headers: {
+        ...init?.headers,
+        'Notion-Version': '2022-06-28',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  },
+ });
 
 export interface NotionPost {
   id: string;
@@ -26,8 +36,13 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
   try {
     const response = await notion.databases.query({
       database_id: import.meta.env.VITE_NOTION_DATABASE_ID,
+      filter: {
+        property: 'Published',
+        checkbox: {
+          equals: true
+        }
+      },
       page_size: pageSize,
-      filter_properties: ['Title', 'Published', 'Published Date', 'Thumbnail'],
       sorts: [
         {
           property: 'Published Date',
