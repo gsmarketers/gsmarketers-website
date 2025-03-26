@@ -27,19 +27,10 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
     const response = await notion.databases.query({
       database_id: import.meta.env.VITE_NOTION_DATABASE_ID,
       page_size: pageSize,
-      filter: {
-        and: [
-          {
-            property: 'Title',
-            title: {
-              is_not_empty: true
-            },
-          }
-        ]
-      },
+      filter_properties: ['Title', 'Published', 'Published Date', 'Thumbnail'],
       sorts: [
         {
-          timestamp: 'created_time',
+          property: 'Published Date',
           direction: 'descending'
         }
       ]
@@ -49,9 +40,12 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
       response.results.map(async (page: any) => {
         // Safely extract properties with fallbacks
         const properties = page.properties || {};
-        const title = properties?.Title?.title?.[0]?.plain_text || 'Untitled';
-        const pageContent = properties?.['Page Content']?.rich_text?.[0]?.plain_text || '';
-        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const title = properties.Title?.title?.[0]?.plain_text || 'Untitled';
+        const slug = properties.Slug?.rich_text?.[0]?.plain_text || 
+          title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const publishedDate = properties['Published Date']?.date?.start;
+        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
+        const published = properties.Published?.checkbox || false;
 
         // Get the page content blocks
         const blocks = await notion.blocks.children.list({
@@ -64,10 +58,10 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
           id: page.id,
           slug,
           title,
-          pageContent,
           content,
-          date: page.created_time,
-          published: true
+          thumbnail,
+          date: publishedDate || page.created_time,
+          published
         };
       })
     );
