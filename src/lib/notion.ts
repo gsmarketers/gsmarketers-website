@@ -13,7 +13,7 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
   totalPages: number;
 }> {
   try {
-    const response = await fetch('/blog-posts.json', {
+    const response = await fetch('/blog-posts.json?' + new Date().getTime(), {
       headers: {
         'Accept': 'application/json',
         'Cache-Control': 'no-cache'
@@ -42,7 +42,7 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
 
 export async function getPost(slug: string): Promise<NotionPost | null> {
   try {
-    const response = await fetch('/blog-posts.json', {
+    const response = await fetch('/blog-posts.json?' + new Date().getTime(), {
       headers: {
         'Accept': 'application/json',
         'Cache-Control': 'no-cache'
