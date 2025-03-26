@@ -40,20 +40,21 @@ async function fetchPosts() {
 
     const response = await notion.databases.query({
       database_id: process.env.NOTION_DATABASE_ID,
-      filter_properties: ['Title', 'Page Content', 'Slug', 'Published', 'Published Date', 'Thumbnail'],
+      filter: {
+      }
       filter: {
         and: [
           {
-            property: 'Published',
-            checkbox: {
-              equals: true
-            }
+            property: 'Title',
+            title: {
+              is_not_empty: true
+            },
           }
         ]
       },
       sorts: [
         {
-          property: 'Published Date',
+          timestamp: 'created_time',
           direction: 'descending'
         }
       ],
@@ -66,11 +67,9 @@ async function fetchPosts() {
       try {
         // Safely extract properties with fallbacks
         const properties = page.properties || {};
-        const title = properties.Title?.title?.[0]?.plain_text || 'Untitled';
-        const slug = properties.Slug?.rich_text?.[0]?.plain_text || page.id;
-        const pageContent = properties['Page Content']?.rich_text?.[0]?.plain_text || '';
-        const publishedDate = properties['Published Date']?.date?.start;
-        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url || '';
+        const title = properties?.Title?.title?.[0]?.plain_text || 'Untitled';
+        const pageContent = properties?.['Page Content']?.rich_text?.[0]?.plain_text || '';
+        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         
         const blocks = await notion.blocks.children.list({
           block_id: page.id
@@ -108,9 +107,8 @@ async function fetchPosts() {
 
         const post = {
           title,
-          date: publishedDate || new Date().toISOString(),
+          date: page.created_time,
           pageContent,
-          thumbnail,
           lastEdited: page.last_edited_time,
           content: content.join('')
         };
@@ -120,8 +118,7 @@ async function fetchPosts() {
         const markdown = `---
 title: "${post.title.replace(/"/g, '\\"')}"
 date: "${post.date}"
-pageContent: "${post.pageContent.replace(/"/g, '\\"')}"
-thumbnail: "${post.thumbnail}"
+pageContent: "${post.pageContent.replace(/"/g, '\\"').replace(/\n/g, ' ')}"
 lastEdited: "${post.lastEdited}"
 ---
 
