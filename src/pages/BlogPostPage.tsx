@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getPost, type NotionPost } from '@/lib/notion';
-import { format as formatDate } from 'date-fns';
+import { formatDate } from 'date-fns';
+import ReactMarkdown from 'react-markdown';
 import { ArrowLeft, Calendar, User2 } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 
@@ -60,8 +61,7 @@ const BlogPostPage = () => {
     );
   }
 
-  const featuredImage = post._embedded?.['wp:featuredmedia']?.[0]?.source_url;
-  const author = post._embedded?.author?.[0];
+  const featuredImage = post.thumbnail;
 
   return (
     <div className="min-h-screen pt-32 pb-16">
@@ -80,35 +80,28 @@ const BlogPostPage = () => {
           </Link>
 
           <h1
-            className="text-3xl md:text-4xl font-semibold mb-6 text-white"
-          >
+            className="text-3xl md:text-4xl font-semibold mb-6 text-white">
             {post.title}
           </h1>
 
           <div className="flex items-center gap-4 text-white/60 mb-8">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4" />
-              <time dateTime={post.date}>{formatDate(post.date)}</time>
+              <time dateTime={post.date}>{formatDate(new Date(post.date), 'MMMM dd, yyyy')}</time>
             </div>
-            {author && (
-              <div className="flex items-center gap-2">
-                <User2 className="w-4 h-4" />
-                <span>{author.name}</span>
-              </div>
-            )}
           </div>
 
-          {post.coverImage && (
+          {featuredImage && (
             <div className="relative h-[400px] mb-8 rounded-2xl overflow-hidden">
               <img
-                src={post.coverImage}
-                alt={post.title}
+                src={featuredImage}
+                alt={post.title.rendered}
                 className="absolute inset-0 w-full h-full object-cover"
               />
             </div>
           )}
 
-          <div
+          <ReactMarkdown
             className="prose prose-invert prose-cyan max-w-none
                      prose-headings:text-white prose-headings:font-semibold
                      prose-p:text-white/80 prose-p:leading-relaxed
@@ -119,8 +112,7 @@ const BlogPostPage = () => {
                      prose-ol:text-white/80 prose-ul:text-white/80
                      prose-li:marker:text-cyan-400"
           >
-            {post.content}
-          </div>
+            {post.content}</ReactMarkdown>
         </motion.div>
       </article>
     </div>
