@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { format as formatDate } from 'date-fns';
+import { formatDate } from 'date-fns';
 import type { NotionPost } from '@/lib/notion';
 import { ArrowUpRight } from 'lucide-react';
 
@@ -9,14 +9,16 @@ interface BlogCardProps {
 }
 
 export function BlogCard({ post }: BlogCardProps) {
+  const featuredImage = post.thumbnail;
+
   return (
     <Link to={`/blog/${post.slug}`} className="group block">
       <article className="relative overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 transition-all duration-300 hover:bg-white/10">
-        {post.coverImage && (
+        {featuredImage && (
           <div className="relative h-48 overflow-hidden">
             <img
-              src={post.coverImage}
-              alt={post.title}
+              src={featuredImage}
+              alt={post.title.rendered}
               className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -28,10 +30,13 @@ export function BlogCard({ post }: BlogCardProps) {
             <time dateTime={post.date}>{formatDate(post.date)}</time>
           </div>
           
-          <h2 className="text-xl font-semibold mb-3 text-white group-hover:text-white/90 transition-colors line-clamp-2"
-          >
+          <h2 className="text-xl font-semibold mb-3 text-white group-hover:text-white/90 transition-colors line-clamp-2">
             {post.title}
-          </h2>          
+          </h2>
+          
+          <div className="text-white/70 line-clamp-3 mb-4">
+            {post.content.split('\n')[0]}
+          </div>
           
           <div className="flex items-center text-cyan-400 font-medium">
             Read More
