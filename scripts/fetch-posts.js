@@ -41,20 +41,18 @@ async function fetchPosts() {
     const response = await notion.databases.query({
       database_id: process.env.NOTION_DATABASE_ID,
       filter: {
-      }
-      filter: {
         and: [
           {
-            property: 'Title',
-            title: {
-              is_not_empty: true
-            },
+            property: 'Published',
+            checkbox: {
+              equals: true
+            }
           }
         ]
       },
       sorts: [
         {
-          timestamp: 'created_time',
+          property: 'Published Date',
           direction: 'descending'
         }
       ],
@@ -68,8 +66,10 @@ async function fetchPosts() {
         // Safely extract properties with fallbacks
         const properties = page.properties || {};
         const title = properties?.Title?.title?.[0]?.plain_text || 'Untitled';
-        const pageContent = properties?.['Page Content']?.rich_text?.[0]?.plain_text || '';
-        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const slug = properties.Slug?.rich_text?.[0]?.plain_text || 
+          title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const publishedDate = properties['Published Date']?.date?.start;
+        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
         
         const blocks = await notion.blocks.children.list({
           block_id: page.id
@@ -107,8 +107,8 @@ async function fetchPosts() {
 
         const post = {
           title,
-          date: page.created_time,
-          pageContent,
+          date: publishedDate || page.created_time,
+          thumbnail,
           lastEdited: page.last_edited_time,
           content: content.join('')
         };
@@ -118,7 +118,7 @@ async function fetchPosts() {
         const markdown = `---
 title: "${post.title.replace(/"/g, '\\"')}"
 date: "${post.date}"
-pageContent: "${post.pageContent.replace(/"/g, '\\"').replace(/\n/g, ' ')}"
+thumbnail: "${post.thumbnail || ''}"
 lastEdited: "${post.lastEdited}"
 ---
 
