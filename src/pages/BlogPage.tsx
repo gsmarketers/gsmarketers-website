@@ -23,12 +23,8 @@ const BlogPage = () => {
         const { posts: newPosts, totalPages: total } = await getPosts(currentPage, POSTS_PER_PAGE);
         setPosts(newPosts);
         setTotalPages(total);
-      } catch (err: any) {
-        if (err.message.includes('configuration not found')) {
-          setError('Blog functionality is currently unavailable. Please check back later.');
-        } else {
-          setError('Failed to load blog posts. Please try again later.');
-        }
+      } catch (err) {
+        setError('Failed to load blog posts. Please try again later.');
         console.error('Blog fetch error:', err);
       } finally {
         setIsLoading(false);
