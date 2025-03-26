@@ -8,6 +8,7 @@ export interface NotionPost {
   id: string;
   slug: string;
   title: string;
+  pageContent: string;
   content: string;
   coverImage?: string;
   date: string;
@@ -120,6 +121,7 @@ export async function getPost(slug: string): Promise<NotionPost | null> {
       id: page.id,
       slug: page.properties.Slug?.rich_text[0]?.plain_text || page.id,
       title: page.properties.Title?.title[0]?.plain_text || 'Untitled',
+      pageContent: page.properties['Page Content']?.rich_text[0]?.plain_text || '',
       content,
       coverImage: page.properties.CoverImage?.files[0]?.file?.url || undefined,
       date: page.properties['Published Date']?.date?.start || new Date().toISOString(),
