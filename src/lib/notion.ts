@@ -27,10 +27,20 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
       database_id: import.meta.env.VITE_NOTION_DATABASE_ID,
       page_size: pageSize,
       filter: {
-        property: 'Published',
-        checkbox: {
-          equals: true
-        }
+        and: [
+          {
+            property: 'Published',
+            checkbox: {
+              equals: true
+            }
+          },
+          {
+            property: 'Published Date',
+            date: {
+              is_not_empty: true
+            }
+          }
+        ]
       },
       sorts: [
         {
