@@ -40,19 +40,13 @@ async function fetchPosts() {
 
     const response = await notion.databases.query({
       database_id: process.env.NOTION_DATABASE_ID,
-      filter_properties: ['Title', 'Published Date', 'Page Content', 'Thumbnail', 'Slug'],
+      filter_properties: ['Title', 'Page Content', 'Slug', 'Published', 'Published Date', 'Thumbnail'],
       filter: {
         and: [
           {
             property: 'Published',
             checkbox: {
               equals: true
-            }
-          },
-          {
-            property: 'Published Date',
-            date: {
-              is_not_empty: true
             }
           }
         ]
@@ -70,9 +64,13 @@ async function fetchPosts() {
       // Add delay between processing each post to avoid rate limits
       await delay(500);
       try {
-        // Safely get title
-        const title = page.properties?.Title?.title?.[0]?.plain_text || 'Untitled';
-        const slug = page.properties?.Slug?.rich_text?.[0]?.plain_text || page.id;
+        // Safely extract properties with fallbacks
+        const properties = page.properties || {};
+        const title = properties.Title?.title?.[0]?.plain_text || 'Untitled';
+        const slug = properties.Slug?.rich_text?.[0]?.plain_text || page.id;
+        const pageContent = properties['Page Content']?.rich_text?.[0]?.plain_text || '';
+        const publishedDate = properties['Published Date']?.date?.start;
+        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url || '';
         
         const blocks = await notion.blocks.children.list({
           block_id: page.id
@@ -110,9 +108,9 @@ async function fetchPosts() {
 
         const post = {
           title,
-          date: page.properties['Published Date']?.date?.start || new Date().toISOString(),
-          pageContent: page.properties?.['Page Content']?.rich_text?.[0]?.plain_text || '',
-          thumbnail: page.properties?.Thumbnail?.files?.[0]?.file?.url || '',
+          date: publishedDate || new Date().toISOString(),
+          pageContent,
+          thumbnail,
           lastEdited: page.last_edited_time,
           content: content.join('')
         };
