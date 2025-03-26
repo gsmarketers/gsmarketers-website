@@ -26,18 +26,34 @@ function Header1() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setOpen] = useState(false);
+  
+  const handleScrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
 
   const handleNavigation = (href: string) => {
     if (href.startsWith('/#')) {
       const elementId = href.substring(2);
       if (location.pathname !== '/') {
-        navigate('/', { state: { scrollTo: elementId } });
+        navigate('/');
+        // Let the App component handle the scrolling
       } else {
         const element = document.getElementById(elementId);
         element?.scrollIntoView({ behavior: 'smooth' });
       }
+    } else if (href === '/') {
+      if (location.pathname === '/') {
+        handleScrollToTop();
+      } else {
+        navigate(href);
+        handleScrollToTop();
+      }
     } else {
       navigate(href);
+      handleScrollToTop();
     }
     setOpen(false);
   };
@@ -47,9 +63,9 @@ function Header1() {
       <div className="container relative mx-auto">
         <nav className="mx-auto max-w-3xl bg-black/40 backdrop-blur-xl border border-white/5 rounded-full px-6 py-3 flex items-center justify-between relative">
           {/* Logo */}
-          <Link to="/" className="flex items-center md:flex-none flex-1 justify-center md:justify-start translate-x-4 md:translate-x-0">
+          <button onClick={() => handleNavigation('/')} className="flex items-center md:flex-none flex-1 justify-center md:justify-start translate-x-4 md:translate-x-0 bg-transparent border-0">
             <img src="/Resized_GSM.svg" alt="GS Marketers" className="h-16 md:h-20 -my-8 md:-my-16" />
-          </Link>
+          </button>
           
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-4">
