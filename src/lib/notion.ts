@@ -27,6 +27,7 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
     const response = await notion.databases.query({
       database_id: import.meta.env.VITE_NOTION_DATABASE_ID,
       page_size: pageSize,
+      filter_properties: ['Title', 'Page Content', 'Slug', 'Published', 'Published Date', 'Thumbnail'],
       filter: {
         and: [
           {
@@ -35,12 +36,6 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
               equals: true
             }
           },
-          {
-            property: 'Published Date',
-            date: {
-              is_not_empty: true
-            }
-          }
         ]
       },
       sorts: [
@@ -53,6 +48,14 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
 
     const posts: NotionPost[] = await Promise.all(
       response.results.map(async (page: any) => {
+        // Safely extract properties with fallbacks
+        const properties = page.properties || {};
+        const title = properties.Title?.title?.[0]?.plain_text || 'Untitled';
+        const slug = properties.Slug?.rich_text?.[0]?.plain_text || page.id;
+        const pageContent = properties['Page Content']?.rich_text?.[0]?.plain_text || '';
+        const publishedDate = properties['Published Date']?.date?.start;
+        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
+
         // Get the page content blocks
         const blocks = await notion.blocks.children.list({
           block_id: page.id
@@ -62,12 +65,13 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
 
         return {
           id: page.id,
-          slug: page.properties.Slug?.rich_text[0]?.plain_text || page.id,
-          title: page.properties.Title?.title[0]?.plain_text || 'Untitled',
+          slug,
+          title,
+          pageContent,
           content,
-          thumbnail: page.properties.Thumbnail?.files[0]?.file?.url || undefined,
-          date: page.properties['Published Date']?.date?.start || new Date().toISOString(),
-          published: page.properties.Published?.checkbox || false
+          thumbnail: thumbnail || undefined,
+          date: publishedDate || new Date().toISOString(),
+          published: properties.Published?.checkbox || false
         };
       })
     );
