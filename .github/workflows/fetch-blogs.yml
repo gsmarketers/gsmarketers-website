@@ -22,16 +22,19 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
           
       - name: Install Dependencies
         run: |
+          echo "Installing dependencies..."
           npm install @notionhq/client
           npm install dotenv
         
       - name: Create Backup Directory
-        run: mkdir -p src/content/blog/.backups
+        run: |
+          echo "Creating backup directory..."
+          mkdir -p src/content/blog/.backups
         
       - name: Fetch and Update Posts
         env:
@@ -39,30 +42,33 @@ jobs:
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           NODE_ENV: production
         run: |
-          # Add timestamp to run
-          echo "Starting sync at $(date)"
+          echo "🚀 Starting sync at $(date)"
           
           # Verify environment variables
           if [ -z "$NOTION_TOKEN" ]; then
-            echo "❌ NOTION_TOKEN is not set"
+            echo "❌ Error: NOTION_TOKEN is not set"
             exit 1
           fi
           
           if [ -z "$NOTION_DATABASE_ID" ]; then
-            echo "❌ NOTION_DATABASE_ID is not set"
+            echo "❌ Error: NOTION_DATABASE_ID is not set"
             exit 1
           fi
           
+          echo "✅ Environment variables verified"
+          
           # Run with retries
           for i in {1..3}; do
+            echo "📝 Attempt $i of 3..."
             if node scripts/fetch-posts.js; then
-              echo "✅ Sync completed successfully"
+              echo "✅ Sync completed successfully on attempt $i"
               break
             else
-              echo "❌ Attempt $i failed, retrying in 30 seconds..."
+              echo "⚠️ Attempt $i failed"
+              echo "🔄 Retrying in 30 seconds..."
               sleep 30
               if [ $i -eq 3 ]; then
-                echo "❌ All retry attempts failed"
+                echo "❌ Error: All retry attempts failed"
                 exit 1
               fi
             fi
@@ -71,13 +77,17 @@ jobs:
       - name: Commit and Push Changes
         if: success()
         run: |
+          echo "📦 Preparing to commit changes..."
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
           if [[ -n $(git status -s) ]]; then
+            echo "💾 Changes detected, committing..."
             git add src/content/blog/
             git commit -m "Update blog posts from Notion [skip ci]"
+            echo "🚀 Pushing changes..."
             git push
+            echo "✅ Changes pushed successfully"
           else
-            echo "No changes to commit"
+            echo "ℹ️ No changes to commit"
           fi
