@@ -48,7 +48,7 @@ async function fetchPosts() {
       },
       sorts: [
         {
-          property: 'Date',
+          property: 'Published Date',
           direction: 'descending'
         }
       ]
@@ -95,7 +95,7 @@ async function fetchPosts() {
 
         const post = {
           title: page.properties.Title.title[0]?.plain_text || 'Untitled',
-          date: page.properties.Date.date.start,
+          date: page.properties['Published Date'].date.start,
           excerpt: page.properties.Excerpt.rich_text[0]?.plain_text || '',
           coverImage: page.properties.CoverImage?.files[0]?.file?.url || '',
           author: page.properties.Author.rich_text[0]?.plain_text || 'Anonymous',
