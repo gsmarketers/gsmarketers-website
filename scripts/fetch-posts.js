@@ -40,7 +40,7 @@ async function fetchPosts() {
 
     const response = await notion.databases.query({
       database_id: process.env.NOTION_DATABASE_ID,
-      filter_properties: ['Title', 'Published Date', 'Page Content', 'CoverImage', 'Slug'],
+      filter_properties: ['Title', 'Published Date', 'Page Content', 'Thumbnail', 'Slug'],
       filter: {
         and: [
           {
@@ -112,7 +112,7 @@ async function fetchPosts() {
           title,
           date: page.properties['Published Date']?.date?.start || new Date().toISOString(),
           pageContent: page.properties?.['Page Content']?.rich_text?.[0]?.plain_text || '',
-          coverImage: page.properties?.CoverImage?.files?.[0]?.file?.url || '',
+          thumbnail: page.properties?.Thumbnail?.files?.[0]?.file?.url || '',
           lastEdited: page.last_edited_time,
           content: content.join('')
         };
@@ -123,7 +123,7 @@ async function fetchPosts() {
 title: "${post.title.replace(/"/g, '\\"')}"
 date: "${post.date}"
 pageContent: "${post.pageContent.replace(/"/g, '\\"')}"
-coverImage: "${post.coverImage}"
+thumbnail: "${post.thumbnail}"
 lastEdited: "${post.lastEdited}"
 ---
 
