@@ -236,14 +236,18 @@ async function fetchPosts() {
                 const toggleText = block.toggle.rich_text.map((text) => text.plain_text).join('');
                 return `> ${toggleText}\n\n`;
               case 'table':
-                const rows = block.table.children.map((row) => 
-                  row.table_row.cells.map((cell) => 
-                    cell.map((text) => text.plain_text).join('')
-                  ).join(' | ')
-                );
+                const rows = block.table.children.map((row) => {
+                  if (!row?.table_row?.cells) return '';
+                  return row.table_row.cells.map((cell) => {
+                    if (!cell) return '';
+                    return cell.map((text) => text.plain_text).join('')
+                  }).join(' | ')
+                }).filter(Boolean); // Remove empty rows
                 return rows.join('\n') + '\n\n';
+
               case 'table_row':
                 return '';
+
               case 'table_cell':
                 return '';
               case 'column_list':
