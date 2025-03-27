@@ -16,18 +16,20 @@ export function BlogCard({ post }: BlogCardProps) {
       <article className="relative overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 transition-all duration-300 hover:bg-white/10">
         {featuredImage && (
           <div className="relative h-48 overflow-hidden">
-            <img
-              src={featuredImage}
-              alt={post.title.rendered}
-              className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            />
+            {featuredImage && (
+              <img
+                src={featuredImage}
+                alt={post.title}
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           </div>
         )}
         
         <div className="p-6">
           <div className="flex items-center gap-2 text-sm text-white/60 mb-3">
-            <time dateTime={post.date}>{formatDate(post.date)}</time>
+            <time dateTime={post.date}>{formatDate(new Date(post.date))}</time>
           </div>
           
           <h2 className="text-xl font-semibold mb-3 text-white group-hover:text-white/90 transition-colors line-clamp-2">
