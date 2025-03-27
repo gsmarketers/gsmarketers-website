@@ -103,8 +103,3 @@ const BlogPage = () => {
 };
 
 export default BlogPage;
-
-function BlogPage() {
-  console.log("BlogPage is mounted");
-  return <div>Hello from BlogPage</div>;
-}
