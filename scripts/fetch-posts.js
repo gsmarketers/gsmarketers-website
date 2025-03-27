@@ -180,14 +180,16 @@ async function fetchPosts() {
 
         // Convert markdown to HTML for preview
         const processedContent = cleanedContent
-          .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // Convert links
-          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Convert bold
-          .replace(/\*(.*?)\*/g, '<em>$1</em>') // Convert italic
-          .replace(/\n\n/g, '<br><br>') // Convert newlines to HTML breaks
-          .replace(/\n/g, '<br>') // Convert single newlines to HTML breaks
-          .replace(/`(.*?)`/g, '<code>$1</code>') // Convert inline code
-          .replace(/```(.*?)```/g, '<pre><code>$1</code></pre>') // Convert code blocks
-          .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1">'); // Convert images
+          ? cleanedContent
+              .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // Convert links
+              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Convert bold
+              .replace(/\*(.*?)\*/g, '<em>$1</em>') // Convert italic
+              .replace(/\n\n/g, '<br><br>') // Convert newlines to HTML breaks
+              .replace(/\n/g, '<br>') // Convert single newlines to HTML breaks
+              .replace(/`(.*?)`/g, '<code>$1</code>') // Convert inline code
+              .replace(/```(.*?)```/g, '<pre><code>$1</code></pre>') // Convert code blocks
+              .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1">') // Convert images
+          : 'No content available';
 
         const post = {
           id: page.id,
