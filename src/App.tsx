@@ -38,7 +38,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/contact" element={<ContactPage />} />
-        <Route path="/blog" element={<div>Blog Works!</div>} />
+        <Route path="/blog" element={<BlogPage />} />
         <Route path="/blog/:slug" element={<BlogPostPage />} />
       </Routes>
       <Footer />
@@ -47,4 +47,5 @@ function App() {
 }
 
 export default App;
+
 
