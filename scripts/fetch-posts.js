@@ -35,40 +35,11 @@ if (!fs.existsSync(PUBLIC_DIR)) {
 }
 
 const notion = new Client({
-  auth: process.env.NOTION_TOKEN,
-  notionVersion: '2022-06-28'
+  auth: process.env.NOTION_TOKEN
 });
 
 // Helper function to add delay between API calls
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function fetchAllBlocks(block_id) {
-  let hasMore = true;
-  let nextCursor = null;
-  let blocks = [];
-
-  while (hasMore) {
-    const response = await notion.blocks.children.list({
-      block_id,
-      page_size: 100,
-      ...(nextCursor ? { start_cursor: nextCursor } : {})
-    });
-
-    blocks = blocks.concat(response.results);
-    hasMore = response.has_more;
-    nextCursor = response.next_cursor;
-  }
-
-  // Recursively fetch children for blocks that have them
-  for (const block of blocks) {
-    if (block.has_children && !block.children) {
-      const children = await fetchAllBlocks(block.id);
-      block.children = children;
-    }
-  }
-
-  return blocks;
-}
 
 async function fetchPosts() {
   try {
@@ -118,66 +89,124 @@ async function fetchPosts() {
 
     console.log(`✨ Found ${response.results.length} published posts`);
 
-    let extractedTitle = '';
     for (const page of response.results) {
       // Add delay between processing each post to avoid rate limits
-      await delay(1000);
+      await delay(500);
       try {
-        // First, fetch the actual page content using the page ID
-        console.log(`   📄 Processing post ID: ${page.id}`);
-        
-        // Get the page properties
+        // Safely extract properties with fallbacks
         const properties = page.properties || {};
-        
-        // Get all content blocks
-        const allBlocks = await fetchAllBlocks(page.id);
-        console.log(`   Found ${allBlocks.length} content blocks`);
+        // "Title" is a text property, not used as the actual title
+        const titleFromProperty = properties?.Title?.text?.[0]?.plain_text || '';
+        const slug = (properties.Slug?.type === 'text' && properties.Slug.text?.[0]?.plain_text) ||
+          (properties.Slug?.rich_text?.[0]?.plain_text) ||
+          titleFromProperty.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const publishedDate = properties['Published Date']?.date?.start;
+        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
 
-        // Process the content blocks
-        let content = '';
-        for (const block of allBlocks) {
-          content += await processBlock(block, extractedTitle);
+        console.log(`📄 Processing post ID: ${page.id}, Slug: ${slug}`);
+
+        // Fetch the page content blocks (second API request)
+        const blocks = await notion.blocks.children.list({
+          block_id: page.id,
+          page_size: 100 // Ensure we get all blocks
+        });
+
+        console.log(`   Found ${blocks.results.length} content blocks`);
+
+        let extractedTitle = titleFromProperty; // Fallback to the text property
+        const contentBlocks = [];
+        let isFirstHeading = true;
+
+        // Process all blocks to extract the title (first heading) and content
+        for (const block of blocks.results) {
+          await delay(100);
+          console.log(`   Processing block type: ${block.type}`);
+          let blockContent = '';
+
+          switch (block.type) {
+            case 'heading_1':
+              blockContent = '# ' + block.heading_1.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              if (isFirstHeading) {
+                extractedTitle = block.heading_1.rich_text.map((text) => text.plain_text).join('');
+                isFirstHeading = false;
+              }
+              break;
+            case 'heading_2':
+              blockContent = '## ' + block.heading_2.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              if (isFirstHeading) {
+                extractedTitle = block.heading_2.rich_text.map((text) => text.plain_text).join('');
+                isFirstHeading = false;
+              }
+              break;
+            case 'heading_3':
+              blockContent = '### ' + block.heading_3.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              if (isFirstHeading) {
+                extractedTitle = block.heading_3.rich_text.map((text) => text.plain_text).join('');
+                isFirstHeading = false;
+              }
+              break;
+            case 'paragraph':
+              blockContent = block.paragraph.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              break;
+            case 'bulleted_list_item':
+              blockContent = '- ' + block.bulleted_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
+              break;
+            case 'numbered_list_item':
+              blockContent = '1. ' + block.numbered_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
+              break;
+            case 'code':
+              blockContent = '```\n' + block.code.rich_text.map((text) => text.plain_text).join('') + '\n```\n\n';
+              break;
+            case 'quote':
+              blockContent = '> ' + block.quote.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              break;
+            case 'image':
+              const imageUrl = block.image.type === 'external' ? block.image.external.url : block.image.file.url;
+              const caption = block.image.caption?.length ? block.image.caption[0].plain_text : '';
+              blockContent = `![${caption}](${imageUrl})\n\n`;
+              break;
+            default:
+              console.log(`   Unsupported block type: ${block.type}`);
+              blockContent = '';
+              break;
+          }
+
+          if (blockContent) {
+            contentBlocks.push(blockContent);
+          }
         }
 
-        // Extract title from the first heading block
-        let title = extractedTitle || properties['Title']?.rich_text?.[0]?.plain_text || 'Untitled';
-        const slug = title.toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)+/g, '');
-        
-        // Get other properties
-        const date = properties['Published Date']?.date?.start || new Date().toISOString();
-        const thumbnail = properties['Thumbnail']?.files?.[0]?.file?.url || '';
+        // Fallback to "Untitled" if no heading was found
+        if (!extractedTitle) {
+          extractedTitle = 'Untitled';
+        }
 
-        // Create post object
         const post = {
-          id: page.id,
-          title,
-          slug,
-          date,
+          title: extractedTitle,
+          date: publishedDate || page.created_time,
           thumbnail,
-          content,
-          url: `/blog/${slug}`
+          lastEdited: page.last_edited_time,
+          content: contentBlocks.join('')
         };
 
-        // Save to processedPosts
-        processedPosts.push(post);
+        console.log(`   Extracted title: ${post.title}`);
+        console.log(`   Content length: ${post.content.length} characters`);
 
         const filePath = path.join(BLOG_DIR, `${slug}.md`);
 
         const markdown = `---
-title: "${title}"
-slug: "${slug}"
-date: "${date}"
-thumbnail: "${thumbnail || ''}"
+title: "${post.title.replace(/"/g, '\\"')}"
+date: "${post.date}"
+thumbnail: "${post.thumbnail || ''}"
+lastEdited: "${post.lastEdited}"
 ---
 
-${content}`;
+${post.content}`;
 
         // Only write if content has changed
         const existingContent = existingPosts.get(slug);
         if (!existingContent || existingContent !== markdown) {
-          console.log(`   💾 Saving updated content for "${title}"`);
+          console.log(`   💾 Saving updated content for "${post.title}"`);
           // Create backup before writing
           if (fs.existsSync(filePath)) {
             const backupPath = path.join(BLOG_DIR, '.backups');
@@ -191,97 +220,43 @@ ${content}`;
           // Write new content
           fs.writeFileSync(filePath, markdown, 'utf8');
         } else {
-          console.log(`   ⏭️ No changes detected for "${title}"`);
+          console.log(`   ⏭️ No changes detected for "${post.title}"`);
         }
-        extractedTitle = '';
 
+        // Add processed post to array for JSON
+        processedPosts.push({
+          id: page.id,
+          slug,
+          title: post.title,
+          content: post.content,
+          thumbnail: post.thumbnail,
+          date: post.date,
+          lastEdited: post.lastEdited
+        });
+
+        console.log(`   Added post to processedPosts. Current count: ${processedPosts.length}`);
       } catch (error) {
         console.error(`Error processing post ${page.id}:`, error);
-        console.error('Skipping this post due to error');
+        console.log('Skipping post due to error');
+        continue;
       }
     }
 
-    // Generate JSON file
-    fs.writeFileSync(POSTS_JSON_PATH, JSON.stringify(processedPosts, null, 2), 'utf8');
+    // Write processed posts to JSON file
+    console.log('Final processedPosts:', JSON.stringify(processedPosts, null, 2));
+    await writeFile(
+      POSTS_JSON_PATH,
+      JSON.stringify({ 
+        posts: processedPosts,
+        lastUpdated: new Date().toISOString()
+      }, null, 2),
+      'utf8'
+    );
     console.log(`✅ Successfully generated blog posts JSON with ${processedPosts.length} posts`);
 
   } catch (error) {
-    console.error('❌ Error fetching posts:', error);
+    console.error('❌ Error during post processing:', error);
     process.exit(1);
-  }
-}
-
-async function processBlock(block, extractedTitle) {
-  try {
-    switch (block.type) {
-      case 'heading_1':
-        if (!extractedTitle) {
-          extractedTitle = block.heading_1.rich_text.map(text => text.plain_text).join('');
-        }
-        return `# ${block.heading_1.rich_text.map(text => text.plain_text).join('')}\n\n`;
-      case 'heading_2':
-        return `## ${block.heading_2.rich_text.map(text => text.plain_text).join('')}\n\n`;
-      case 'heading_3':
-        return `### ${block.heading_3.rich_text.map(text => text.plain_text).join('')}\n\n`;
-      case 'paragraph':
-        return `${block.paragraph.rich_text.map(text => text.plain_text).join('')}\n\n`;
-      case 'bulleted_list_item':
-        return `- ${block.bulleted_list_item.rich_text.map(text => text.plain_text).join('')}\n`;
-      case 'numbered_list_item':
-        return `1. ${block.numbered_list_item.rich_text.map(text => text.plain_text).join('')}\n`;
-      case 'image':
-        const imageUrl = block.image.type === 'external' ? 
-          block.image.external.url : 
-          block.image.file.url;
-        const caption = block.image.caption?.length ? 
-          block.image.caption[0].plain_text : '';
-        return `![${caption}](${imageUrl})\n\n`;
-      case 'embed':
-        return `Embed: ${block.embed.url}\n\n`;
-      case 'bookmark':
-        return `Bookmark: ${block.bookmark.url}\n\n`;
-      case 'video':
-        return `Video: ${block.video.type === 'external' ? 
-          block.video.external.url : 
-          block.video.file.url}\n\n`;
-      case 'file':
-        return `File: ${block.file.type === 'external' ? 
-          block.file.external.url : 
-          block.file.file.url}\n\n`;
-      case 'to_do':
-        const checked = block.to_do.checked ? '[x]' : '[ ]';
-        return `${checked} ${block.to_do.rich_text.map(text => text.plain_text).join('')}\n\n`;
-      case 'toggle':
-        const toggleText = block.toggle.rich_text.map(text => text.plain_text).join('');
-        return `> ${toggleText}\n\n`;
-      case 'table':
-        try {
-          const rows = block.children || [];
-          const formattedRows = rows.map((row) => {
-            if (!row?.table_row?.cells) return '';
-            return row.table_row.cells.map((cell) => {
-              if (!cell || !Array.isArray(cell)) return '';
-              return cell.map((text) => text.plain_text).join('');
-            }).join(' | ');
-          }).filter(Boolean);
-          
-          if (formattedRows.length > 0) {
-            const header = formattedRows[0];
-            const separator = formattedRows[0].split(' | ').map(() => '---').join(' | ');
-            return `${header}\n${separator}\n${formattedRows.slice(1).join('\n')}\n\n`;
-          }
-          return '';
-        } catch (error) {
-          console.error(`Error processing table block ${block.id}:`, error);
-          return '';
-        }
-      default:
-        console.warn(`Unknown block type: ${block.type}`);
-        return '';
-    }
-  } catch (error) {
-    console.error(`Error processing block ${block.id} (${block.type}):`, error);
-    return '';
   }
 }
 
