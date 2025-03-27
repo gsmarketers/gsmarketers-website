@@ -1,105 +1,53 @@
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { getPosts, type NotionPost } from '@/lib/notion';
-import { BlogCard } from '@/components/blog/BlogCard';
-import { Pagination } from '@/components/blog/Pagination';
-import { ShimmerText } from '@/components/ui/shimmer-text';
-import { Loader2, AlertCircle } from 'lucide-react';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { formatDate } from 'date-fns';
+import type { NotionPost } from '@/lib/notion';
+import { ArrowUpRight } from 'lucide-react';
 
-const POSTS_PER_PAGE = 9;
+interface BlogCardProps {
+  post: NotionPost;
+}
 
-const BlogPage = () => {
-  const [posts, setPosts] = useState<NotionPost[]>([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function BlogCard({ post }: BlogCardProps) {
+  const featuredImage = post.thumbnail;
 
-  useEffect(() => {
-    const fetchPosts = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const { posts: newPosts, totalPages: total } = await getPosts(currentPage, POSTS_PER_PAGE);
-        setPosts(newPosts);
-        setTotalPages(total);
-      } catch (err) {
-        setError('Failed to load blog posts. Please try again later.');
-        console.error('Blog fetch error:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPosts();
-  }, [currentPage]);
+  // Ensure the content preview is a string
+  const contentPreview = post.content && typeof post.content === 'string' 
+    ? post.content.split('\n\n')[0] 
+    : 'No content available';
 
   return (
-    <div className="min-h-screen pt-32 pb-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-16"
-        >
-          <ShimmerText className="text-4xl md:text-5xl font-semibold mb-6">
-            Latest Insights & Updates
-          </ShimmerText>
-          <p className="text-lg text-white/60 max-w-2xl mx-auto">
-            Discover strategies, tips, and success stories to help you grow your business
-            and connect with high-value clients.
-          </p>
-        </motion.div>
-
-        {isLoading ? (
-          <div className="flex items-center justify-center min-h-[400px]">
-            <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
-            <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
-            <h3 className="text-xl font-semibold mb-2 text-red-400">{error}</h3>
-            <p className="text-white/60 max-w-md">
-              Please check your internet connection and try again later.
-            </p>
-          </div>
-        ) : (
-          <>
-            {posts.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-                {posts.map((post) => (
-                  <motion.div
-                    key={post.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                  >
-                    <BlogCard post={post} />
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
-                <h3 className="text-xl font-semibold mb-4 text-white">No Blog Posts Found</h3>
-                <p className="text-white/60 max-w-md">
-                  Check back soon for new content and updates.
-                </p>
-              </div>
-            )}
-
-            {totalPages > 1 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
+    <Link to={`/blog/${post.slug}`} className="group block">
+      <article className="relative overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 transition-all duration-300 hover:bg-white/10">
+        {featuredImage && (
+          <div className="relative h-48 overflow-hidden">
+            {featuredImage && (
+              <img
+                src={featuredImage}
+                alt={post.title}
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
             )}
-          </>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+          </div>
         )}
-      </div>
-    </div>
-  );
-};
 
-export default BlogPage;
+        <div className="p-6">
+          <div className="flex items-center gap-2 text-sm text-white/60 mb-3">
+            <time dateTime={post.date}>{formatDate(new Date(post.date))}</time>
+          </div>
+
+          <h2 className="text-xl font-semibold mb-3 text-white group-hover:text-white/90 transition-colors line-clamp-2">
+            {post.title}
+          </h2>
+
+          <div className="text-white/70 line-clamp-3 mb-4">
+            {contentPreview}
+          </div>
+
+          <div className="flex items-center text-cyan-400 font-medium">
+            Read More
+            <ArrowUpRight className="w-4 h-4 ml-1 transition-transform duration-300 group-hover:translate-x-1" />
+          </div>
+        </div>
+      </article>
