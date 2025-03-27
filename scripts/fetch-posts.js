@@ -241,6 +241,9 @@ async function fetchPosts() {
         
         // Extract title from the first heading block
         let title = extractedTitle || 'Untitled';
+        const slug = title.toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)+/g, '');
         
         // Get other properties
         const date = properties['Published Date']?.date?.start || new Date().toISOString();
@@ -250,33 +253,31 @@ async function fetchPosts() {
         const post = {
           id: page.id,
           title,
-          slug: title.toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/(^-|-$)+/g, ''),
+          slug,
           date,
           thumbnail,
           content,
-          url: `/blog/${post.slug}`
+          url: `/blog/${slug}`
         };
 
         // Save to processedPosts
         processedPosts.push(post);
 
-        const filePath = path.join(BLOG_DIR, `${post.slug}.md`);
+        const filePath = path.join(BLOG_DIR, `${slug}.md`);
 
         const markdown = `---
-title: "${post.title}"
-slug: "${post.slug}"
-date: "${post.date}"
-thumbnail: "${post.thumbnail || ''}"
+title: "${title}"
+slug: "${slug}"
+date: "${date}"
+thumbnail: "${thumbnail || ''}"
 ---
 
-${post.content}`;
+${content}`;
 
         // Only write if content has changed
-        const existingContent = existingPosts.get(post.slug);
+        const existingContent = existingPosts.get(slug);
         if (!existingContent || existingContent !== markdown) {
-          console.log(`   💾 Saving updated content for "${post.title}"`);
+          console.log(`   💾 Saving updated content for "${title}"`);
           // Create backup before writing
           if (fs.existsSync(filePath)) {
             const backupPath = path.join(BLOG_DIR, '.backups');
@@ -284,13 +285,13 @@ ${post.content}`;
               fs.mkdirSync(backupPath);
             }
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            fs.copyFileSync(filePath, path.join(backupPath, `${post.slug}-${timestamp}.md`));
+            fs.copyFileSync(filePath, path.join(backupPath, `${slug}-${timestamp}.md`));
           }
 
           // Write new content
           fs.writeFileSync(filePath, markdown, 'utf8');
         } else {
-          console.log(`   ⏭️ No changes detected for "${post.title}"`);
+          console.log(`   ⏭️ No changes detected for "${title}"`);
         }
 
       } catch (error) {
