@@ -35,11 +35,98 @@ if (!fs.existsSync(PUBLIC_DIR)) {
 }
 
 const notion = new Client({
-  auth: process.env.NOTION_TOKEN
+  auth: process.env.NOTION_TOKEN,
+  notionVersion: '2022-06-28' // Set the Notion API version as per the cURL command
 });
 
 // Helper function to add delay between API calls
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Function to fetch all blocks, handling pagination and nested blocks
+async function fetchAllBlocks(blockId) {
+  let allBlocks = [];
+  let startCursor = undefined;
+
+  try {
+    do {
+      const response = await notion.blocks.children.list({
+        block_id: blockId,
+        page_size: 100,
+        start_cursor: startCursor
+      });
+
+      allBlocks = allBlocks.concat(response.results);
+      startCursor = response.next_cursor;
+    } while (startCursor);
+
+    // Recursively fetch nested blocks
+    for (const block of allBlocks) {
+      if (block.has_children) {
+        console.log(`   Fetching child blocks for block ${block.id} (type: ${block.type})`);
+        const childBlocks = await fetchAllBlocks(block.id);
+        block.children = childBlocks;
+      }
+    }
+  } catch (error) {
+    console.error(`Error fetching blocks for block ${blockId}:`, error);
+    throw error;
+  }
+
+  return allBlocks;
+}
+
+// Function to process a block and its children into Markdown
+function processBlock(block, indentLevel = 0) {
+  let blockContent = '';
+  const indent = '  '.repeat(indentLevel);
+
+  console.log(`   Processing block ${block.id} (type: ${block.type})`);
+
+  switch (block.type) {
+    case 'heading_1':
+      blockContent = `${indent}# ${block.heading_1?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
+      break;
+    case 'heading_2':
+      blockContent = `${indent}## ${block.heading_2?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
+      break;
+    case 'heading_3':
+      blockContent = `${indent}### ${block.heading_3?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
+      break;
+    case 'paragraph':
+      blockContent = `${indent}${block.paragraph?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
+      break;
+    case 'bulleted_list_item':
+      blockContent = `${indent}- ${block.bulleted_list_item?.rich_text?.map((text) => text.plain_text).join('') || ''}\n`;
+      break;
+    case 'numbered_list_item':
+      blockContent = `${indent}1. ${block.numbered_list_item?.rich_text?.map((text) => text.plain_text).join('') || ''}\n`;
+      break;
+    case 'code':
+      blockContent = `${indent}\`\`\`\n${block.code?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\`\`\`\n\n`;
+      break;
+    case 'quote':
+      blockContent = `${indent}> ${block.quote?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
+      break;
+    case 'image':
+      const imageUrl = block.image?.type === 'external' ? block.image.external.url : block.image?.file?.url;
+      const caption = block.image?.caption?.length ? block.image.caption[0].plain_text : '';
+      blockContent = imageUrl ? `${indent}![${caption}](${imageUrl})\n\n` : '';
+      break;
+    default:
+      console.log(`   Unsupported block type: ${block.type}`);
+      blockContent = '';
+      break;
+  }
+
+  // Process child blocks recursively
+  if (block.has_children && block.children) {
+    console.log(`   Processing ${block.children.length} child blocks for block ${block.id}`);
+    const childContents = block.children.map(child => processBlock(child, indentLevel + 1)).join('');
+    blockContent += childContents;
+  }
+
+  return blockContent;
+}
 
 async function fetchPosts() {
   try {
@@ -105,75 +192,49 @@ async function fetchPosts() {
 
         console.log(`📄 Processing post ID: ${page.id}, Slug: ${slug}`);
 
-        // Fetch the page content blocks (second API request)
-        const blocks = await notion.blocks.children.list({
-          block_id: page.id,
-          page_size: 100 // Ensure we get all blocks
-        });
+        // Fetch all blocks, including nested ones
+        const blocks = await fetchAllBlocks(page.id);
 
-        console.log(`   Found ${blocks.results.length} content blocks`);
+        console.log(`   Found ${blocks.length} content blocks`);
 
         // Log the raw block data to debug
-        console.log('   Raw blocks:', JSON.stringify(blocks.results, null, 2));
+        console.log('   Raw blocks:', JSON.stringify(blocks, null, 2));
 
         let extractedTitle = titleFromProperty; // Fallback to the text property
         const contentBlocks = [];
         let isFirstHeading = true;
 
         // Process all blocks to extract the title (first heading) and content
-        for (const block of blocks.results) {
+        for (const block of blocks) {
           await delay(100);
-          console.log(`   Processing block type: ${block.type}`);
-          let blockContent = '';
 
-          switch (block.type) {
-            case 'heading_1':
-              blockContent = '# ' + (block.heading_1?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n\n';
-              if (isFirstHeading) {
-                extractedTitle = block.heading_1?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
-                isFirstHeading = false;
+          // Extract the title from the first heading
+          if (isFirstHeading) {
+            if (block.type === 'heading_1') {
+              extractedTitle = block.heading_1?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
+              isFirstHeading = false;
+            } else if (block.type === 'heading_2') {
+              extractedTitle = block.heading_2?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
+              isFirstHeading = false;
+            } else if (block.type === 'heading_3') {
+              extractedTitle = block.heading_3?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
+              isFirstHeading = false;
+            } else if (block.type === 'paragraph' && block.has_children) {
+              // If the paragraph has children, check them for a heading
+              if (block.children) {
+                const firstChild = block.children.find(child =>
+                  ['heading_1', 'heading_2', 'heading_3'].includes(child.type)
+                );
+                if (firstChild) {
+                  extractedTitle = firstChild[firstChild.type]?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
+                  isFirstHeading = false;
+                }
               }
-              break;
-            case 'heading_2':
-              blockContent = '## ' + (block.heading_2?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n\n';
-              if (isFirstHeading) {
-                extractedTitle = block.heading_2?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
-                isFirstHeading = false;
-              }
-              break;
-            case 'heading_3':
-              blockContent = '### ' + (block.heading_3?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n\n';
-              if (isFirstHeading) {
-                extractedTitle = block.heading_3?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
-                isFirstHeading = false;
-              }
-              break;
-            case 'paragraph':
-              blockContent = (block.paragraph?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n\n';
-              break;
-            case 'bulleted_list_item':
-              blockContent = '- ' + (block.bulleted_list_item?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n';
-              break;
-            case 'numbered_list_item':
-              blockContent = '1. ' + (block.numbered_list_item?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n';
-              break;
-            case 'code':
-              blockContent = '```\n' + (block.code?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n```\n\n';
-              break;
-            case 'quote':
-              blockContent = '> ' + (block.quote?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n\n';
-              break;
-            case 'image':
-              const imageUrl = block.image?.type === 'external' ? block.image.external.url : block.image?.file?.url;
-              const caption = block.image?.caption?.length ? block.image.caption[0].plain_text : '';
-              blockContent = imageUrl ? `![${caption}](${imageUrl})\n\n` : '';
-              break;
-            default:
-              console.log(`   Unsupported block type: ${block.type}`);
-              blockContent = '';
-              break;
+            }
           }
 
+          // Process the block into Markdown
+          const blockContent = processBlock(block);
           if (blockContent) {
             contentBlocks.push(blockContent);
           }
