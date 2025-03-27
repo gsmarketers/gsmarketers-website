@@ -178,12 +178,26 @@ async function fetchPosts() {
         // Clean up content by removing extra newlines and empty lines
         const cleanedContent = content.join('').replace(/\n\n+/g, '\n\n').trim();
 
+        // Convert markdown to HTML for preview
+        const processedContent = cleanedContent
+          .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // Convert links
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Convert bold
+          .replace(/\*(.*?)\*/g, '<em>$1</em>') // Convert italic
+          .replace(/\n\n/g, '<br><br>') // Convert newlines to HTML breaks
+          .replace(/\n/g, '<br>') // Convert single newlines to HTML breaks
+          .replace(/`(.*?)`/g, '<code>$1</code>') // Convert inline code
+          .replace(/```(.*?)```/g, '<pre><code>$1</code></pre>') // Convert code blocks
+          .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1">'); // Convert images
+
         const post = {
+          id: page.id,
+          slug,
           title: extractedTitle,
-          date: publishedDate || page.created_time,
+          content: cleanedContent, // Store raw markdown
+          processedContent, // Store processed HTML for preview
           thumbnail,
-          lastEdited: page.last_edited_time,
-          content: cleanedContent
+          date: publishedDate || page.created_time,
+          lastEdited: page.last_edited_time
         };
 
         const filePath = path.join(BLOG_DIR, `${slug}.md`);
