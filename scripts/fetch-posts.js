@@ -95,7 +95,7 @@ async function fetchPosts() {
       try {
         // Safely extract properties with fallbacks
         const properties = page.properties || {};
-        const title = properties?.Title?.title?.[0]?.plain_text || 'Untitled';
+        const title = properties?.Title?.text?.[0]?.plain_text || 'Untitled';
         const slug = (properties.Slug?.type === 'text' && properties.Slug.text?.[0]?.plain_text) ||
           (properties.Slug?.rich_text?.[0]?.plain_text) ||
           title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -189,6 +189,7 @@ ${post.content}`;
           date: post.date,
           lastEdited: post.lastEdited
         });
+        console.log(`Added post to processedPosts. Current count: ${processedPosts.length}`);
 
       } catch (error) {
         console.error(`Error processing post ${page.id}:`, error);
@@ -197,8 +198,9 @@ ${post.content}`;
         continue;
       }
     }
-
+    
     // Write processed posts to JSON file
+    console.log('Final processedPosts:', JSON.stringify(processedPosts, null, 2));
     await writeFile(
       POSTS_JSON_PATH,
       JSON.stringify({ 
