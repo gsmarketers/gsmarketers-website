@@ -45,22 +45,32 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 async function fetchAllBlocks(block_id) {
   let results = [];
   let nextCursor = null;
+  let hasMore = true;
 
-  do {
+  while (hasMore) {
     try {
       const response = await notion.blocks.children.list({
         block_id,
-        start_cursor: nextCursor || undefined,
+        start_cursor: nextCursor,
         page_size: 100
       });
       
       results = [...results, ...response.results];
       nextCursor = response.next_cursor;
+      hasMore = response.has_more;
+
+      // Process nested blocks
+      for (const block of response.results) {
+        if (block.has_children) {
+          const nestedBlocks = await fetchAllBlocks(block.id);
+          results = [...results, ...nestedBlocks];
+        }
+      }
     } catch (error) {
       console.error(`Error fetching blocks for ${block_id}:`, error);
       throw error;
     }
-  } while (nextCursor);
+  }
 
   return results;
 }
@@ -163,7 +173,17 @@ async function fetchPosts() {
           try {
             switch (block.type) {
               case 'paragraph':
-                return block.paragraph.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+                return block.paragraph.rich_text.map((text) => {
+                  const plainText = text.plain_text;
+                  if (text.annotations.bold) return `**${plainText}**`;
+                  if (text.annotations.italic) return `*${plainText}*`;
+                  if (text.annotations.strikethrough) return `~~${plainText}~~`;
+                  if (text.annotations.code) return `{${plainText}}`;
+                  if (text.annotations.color !== 'default') {
+                    return `{${text.annotations.color} ${plainText}}`;
+                  }
+                  return plainText;
+                }).join('') + '\n\n';
               case 'heading_1':
                 return '# ' + block.heading_1.rich_text.map((text) => text.plain_text).join('') + '\n\n';
               case 'heading_2':
@@ -175,21 +195,66 @@ async function fetchPosts() {
               case 'numbered_list_item':
                 return '1. ' + block.numbered_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
               case 'code':
-                return '```\n' + block.code.rich_text.map((text) => text.plain_text).join('') + '\n``\n\n';
+                const language = block.code.language || 'text';
+                return '```' + language + '\n' + 
+                       block.code.rich_text.map((text) => text.plain_text).join('') + 
+                       '\n``\n\n';
               case 'quote':
                 return '> ' + block.quote.rich_text.map((text) => text.plain_text).join('') + '\n\n';
               case 'image':
-                const imageUrl = block.image.type === 'external' ? block.image.external.url : block.image.file.url;
-                const caption = block.image.caption?.length ? block.image.caption[0].plain_text : '';
+                const imageUrl = block.image.type === 'external' ? 
+                  block.image.external.url : 
+                  block.image.file.url;
+                const caption = block.image.caption?.length ? 
+                  block.image.caption[0].plain_text : '';
                 return `![${caption}](${imageUrl})\n\n`;
               case 'embed':
                 return `Embed: ${block.embed.url}\n\n`;
               case 'bookmark':
                 return `Bookmark: ${block.bookmark.url}\n\n`;
               case 'video':
-                return `Video: ${block.video.type === 'external' ? block.video.external.url : block.video.file.url}\n\n`;
+                return `Video: ${block.video.type === 'external' ? 
+                  block.video.external.url : 
+                  block.video.file.url}\n\n`;
               case 'file':
-                return `File: ${block.file.type === 'external' ? block.file.external.url : block.file.file.url}\n\n`;
+                return `File: ${block.file.type === 'external' ? 
+                  block.file.external.url : 
+                  block.file.file.url}\n\n`;
+              case 'to_do':
+                const checked = block.to_do.checked ? '[x]' : '[ ]';
+                return `${checked} ${block.to_do.rich_text.map((text) => text.plain_text).join('')}\n\n`;
+              case 'toggle':
+                const toggleText = block.toggle.rich_text.map((text) => text.plain_text).join('');
+                return `> ${toggleText}\n\n`;
+              case 'table':
+                const rows = block.table.children.map((row) => 
+                  row.table_row.cells.map((cell) => 
+                    cell.map((text) => text.plain_text).join('')
+                  ).join(' | ')
+                );
+                return rows.join('\n') + '\n\n';
+              case 'table_row':
+                return '';
+              case 'table_cell':
+                return '';
+              case 'column_list':
+                return '';
+              case 'column':
+                return '';
+              case 'synced_block':
+                return '';
+              case 'template':
+                return '';
+              case 'child_page':
+                return '';
+              case 'child_database':
+                return '';
+              case 'link_preview':
+                return '';
+              case 'link_to_page':
+                return '';
+              case 'unsupported':
+                return '';
               default:
                 console.warn(`Unhandled block type: ${block.type}`);
                 return '';
@@ -209,11 +274,15 @@ async function fetchPosts() {
               .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // Convert links
               .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Convert bold
               .replace(/\*(.*?)\*/g, '<em>$1</em>') // Convert italic
+              .replace(/~~(.*?)~~/g, '<del>$1</del>') // Convert strikethrough
+              .replace(/\{(.*?)\}/g, '<span class="code">$1</span>') // Convert code
               .replace(/\n\n/g, '<br><br>') // Convert newlines to HTML breaks
               .replace(/\n/g, '<br>') // Convert single newlines to HTML breaks
               .replace(/`(.*?)`/g, '<code>$1</code>') // Convert inline code
               .replace(/```(.*?)```/g, '<pre><code>$1</code></pre>') // Convert code blocks
               .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1">') // Convert images
+              .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // Convert links
+              .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // Convert links
           : 'No content available';
 
         const post = {
