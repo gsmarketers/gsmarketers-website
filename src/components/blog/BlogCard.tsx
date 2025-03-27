@@ -9,7 +9,16 @@ interface BlogCardProps {
 }
 
 export function BlogCard({ post }: BlogCardProps) {
-  const featuredImage = post.thumbnail;
+  // Handle expired or missing thumbnails
+  const [imageError, setImageError] = useState(false);
+  const fallbackImage = '/blog-placeholder.jpg';
+  
+  const handleImageError = () => {
+    console.log('Image failed to load:', post.thumbnail);
+    setImageError(true);
+  };
+
+  const imageUrl = imageError ? fallbackImage : post.thumbnail;
   
   const getContentPreview = (content: string): string => {
     try {
@@ -47,15 +56,14 @@ export function BlogCard({ post }: BlogCardProps) {
   return (
     <Link to={`/blog/${post.slug}`} className="group block h-full">
       <article className="relative overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 transition-all duration-300 hover:bg-white/10 h-full flex flex-col">
-        {featuredImage && (
+        {imageUrl && (
           <div className="relative h-48 overflow-hidden">
-            {featuredImage && (
-              <img
-                src={featuredImage}
-                alt={post.title}
-                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-            )}
+            <img
+              src={imageUrl}
+              alt={post.title}
+              onError={handleImageError}
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           </div>
         )}
