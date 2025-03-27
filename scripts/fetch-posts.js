@@ -92,24 +92,29 @@ async function fetchPosts() {
     for (const page of response.results) {
       // Add delay between processing each post to avoid rate limits
       await delay(500);
+      let extractedTitle = '';
       try {
-        // Safely extract properties with fallbacks
-        const properties = page.properties || {};
-        const title = properties?.Title?.text?.[0]?.plain_text || 'Untitled';
-        const slug = (properties.Slug?.type === 'text' && properties.Slug.text?.[0]?.plain_text) ||
-          (properties.Slug?.rich_text?.[0]?.plain_text) ||
-          title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        const publishedDate = properties['Published Date']?.date?.start;
-        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
-        
-        console.log(`📄 Processing post: "${title}" (${slug})`);
-
+        const properties = page.properties || {};        
         const blocks = await notion.blocks.children.list({
           block_id: page.id
         });
         
         console.log(`   Found ${blocks.results.length} content blocks`);
 
+        // Find the first heading_1 block for the title
+        const titleBlock = blocks.results.find(block => block.type === 'heading_1');
+        extractedTitle = titleBlock
+          ? titleBlock.heading_1.rich_text.map(text => text.plain_text).join('')
+          : (properties?.Title?.text?.[0]?.plain_text || 'Untitled');
+
+        const slug = properties.Slug?.rich_text?.[0]?.plain_text || 
+          extractedTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+        const publishedDate = properties['Published Date']?.date?.start;
+        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
+        
+        console.log(`📄 Processing post: "${extractedTitle}" (${slug})`);
+        
         const content = await Promise.all(blocks.results.map(async (block) => {
           // Add small delay between block processing
           await delay(100);
@@ -141,7 +146,7 @@ async function fetchPosts() {
         }));
 
         const post = {
-          title,
+          title: extractedTitle,
           date: publishedDate || page.created_time,
           thumbnail,
           lastEdited: page.last_edited_time,
