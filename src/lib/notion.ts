@@ -27,21 +27,28 @@ export async function getPosts(page = 1, pageSize = 10): Promise<{
     const data = await response.json();
     const allPosts = data.posts || [];
     
-    // Ensure all required fields exist
-    const validPosts = allPosts.map(post => ({
+    // Ensure all required fields exist and sort by date
+    const validPosts = allPosts.map((post) => ({
       ...post,
       content: post.content || '',
       title: post.title || 'Untitled',
       date: post.date || new Date().toISOString(),
       lastEdited: post.lastEdited || new Date().toISOString(),
       slug: post.slug || 'untitled-post'
-    }));
+    })).sort((a, b) => {
+      // Sort by date in descending order (newest first)
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return dateB - dateA;
+    });
     
     // Calculate pagination
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const paginatedPosts = validPosts.slice(startIndex, endIndex);
     const totalPages = Math.ceil(validPosts.length / pageSize);
+
+    console.log(`Pagination: Page ${page}/${totalPages}, Posts ${startIndex + 1}-${Math.min(endIndex, validPosts.length)} of ${validPosts.length}`);
 
     return { posts: paginatedPosts, totalPages };
   } catch (error) {
