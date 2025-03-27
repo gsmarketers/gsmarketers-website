@@ -236,20 +236,31 @@ async function fetchPosts() {
                 const toggleText = block.toggle.rich_text.map((text) => text.plain_text).join('');
                 return `> ${toggleText}\n\n`;
               case 'table':
-                const rows = block.table.children.map((row) => {
-                  if (!row?.table_row?.cells) return '';
-                  return row.table_row.cells.map((cell) => {
-                    if (!cell) return '';
-                    return cell.map((text) => text.plain_text).join('')
-                  }).join(' | ')
-                }).filter(Boolean); // Remove empty rows
-                return rows.join('\n') + '\n\n';
+                try {
+                  const rows = block.table.children.map((row) => {
+                    if (!row?.table_row?.cells) return '';
+                    return row.table_row.cells.map((cell) => {
+                      if (!cell) return '';
+                      if (!Array.isArray(cell)) return '';
+                      return cell.map((text) => text.plain_text).join('')
+                    }).join(' | ')
+                  }).filter(Boolean); // Remove empty rows
+                  return rows.join('\n') + '\n\n';
+                } catch (error) {
+                  console.error(`Error processing table block ${block.id}:`, error);
+                  return '';
+                }
 
               case 'table_row':
-                return '';
+                return block.table_row.cells.map((cell) => {
+                  if (!cell) return '';
+                  if (!Array.isArray(cell)) return '';
+                  return cell.map((text) => text.plain_text).join('')
+                }).join(' | ') + '\n';
 
               case 'table_cell':
-                return '';
+                return block.table_cell.rich_text.map((text) => text.plain_text).join('');
+
               case 'column_list':
                 return '';
               case 'column':
