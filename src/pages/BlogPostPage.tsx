@@ -63,6 +63,11 @@ const BlogPostPage = () => {
 
   const featuredImage = post.thumbnail;
 
+  // Ensure content is a string before passing to ReactMarkdown
+  const processedContent = post.content && typeof post.content === 'string' 
+    ? post.content 
+    : 'No content available';
+
   return (
     <div className="min-h-screen pt-32 pb-16">
       <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -95,7 +100,7 @@ const BlogPostPage = () => {
             <div className="relative h-[400px] mb-8 rounded-2xl overflow-hidden">
               <img
                 src={featuredImage}
-                alt={post.title.rendered}
+                alt={post.title}
                 className="absolute inset-0 w-full h-full object-cover"
               />
             </div>
@@ -112,7 +117,8 @@ const BlogPostPage = () => {
                      prose-ol:text-white/80 prose-ul:text-white/80
                      prose-li:marker:text-cyan-400"
           >
-            {post.content}</ReactMarkdown>
+            {processedContent}
+          </ReactMarkdown>
         </motion.div>
       </article>
     </div>
