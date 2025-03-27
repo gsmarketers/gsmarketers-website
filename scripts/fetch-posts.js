@@ -44,7 +44,7 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchAllBlocks(block_id) {
   let results = [];
-  let nextCursor = null;
+  let nextCursor = undefined;
   let hasMore = true;
 
   while (hasMore) {
@@ -142,6 +142,9 @@ async function fetchPosts() {
       let extractedTitle = '';
       try {
         // Fetch all blocks for the page
+        console.log(`   📄 Processing post ID: ${page.id}`);
+        console.log(`   Page properties:`, JSON.stringify(page.properties, null, 2));
+        
         const blocks = await fetchAllBlocks(page.id);
         
         console.log(`   Found ${blocks.length} content blocks`);
@@ -165,6 +168,9 @@ async function fetchPosts() {
         const thumbnail = thumbnailProperty?.files?.[0]?.file?.url;
         
         console.log(`📄 Processing post: "${extractedTitle}" (${slug})`);
+        console.log(`   Slug: ${slug}`);
+        console.log(`   Published Date: ${publishedDate}`);
+        console.log(`   Thumbnail: ${thumbnail}`);
         
         const content = await Promise.all(blocks.map(async (block) => {
           // Add small delay between block processing
