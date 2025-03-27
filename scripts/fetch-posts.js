@@ -94,22 +94,22 @@ async function fetchPosts() {
       await delay(500);
       let extractedTitle = '';
       try {
-        const properties = page.properties || {};        
         const blocks = await notion.blocks.children.list({
           block_id: page.id
         });
         
         console.log(`   Found ${blocks.results.length} content blocks`);
 
-        // Find the first heading_1 block for the title
-        const titleBlock = blocks.results.find(block => block.type === 'heading_1');
-        extractedTitle = titleBlock
-          ? titleBlock.heading_1.rich_text.map(text => text.plain_text).join('')
-          : (properties?.Title?.text?.[0]?.plain_text || 'Untitled');
-
+        const properties = page.properties || {};
+        
+        // Extract title from Page Content field
+        const pageContent = properties['Page Content']?.title || [];
+        extractedTitle = pageContent.length > 0
+          ? pageContent.map(text => text.plain_text).join('')
+          : 'Untitled';
+        
         const slug = properties.Slug?.rich_text?.[0]?.plain_text || 
           extractedTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-
         const publishedDate = properties['Published Date']?.date?.start;
         const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
         
@@ -167,7 +167,7 @@ ${post.content}`;
         // Only write if content has changed
         const existingContent = existingPosts.get(slug);
         if (!existingContent || existingContent !== markdown) {
-          console.log(`   💾 Saving updated content for "${title}"`);
+          console.log(`   💾 Saving updated content for "${extractedTitle}"`);
           // Create backup before writing
           if (fs.existsSync(filePath)) {
             const backupPath = path.join(BLOG_DIR, '.backups');
@@ -181,7 +181,7 @@ ${post.content}`;
           // Write new content
           fs.writeFileSync(filePath, markdown, 'utf8');
         } else {
-          console.log(`   ⏭️ No changes detected for "${title}"`);
+          console.log(`   ⏭️ No changes detected for "${extractedTitle}"`);
         }
 
         // Add processed post to array for JSON
