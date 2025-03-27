@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDate } from 'date-fns';
 import type { NotionPost } from '@/lib/notion';
@@ -11,14 +11,14 @@ interface BlogCardProps {
 export function BlogCard({ post }: BlogCardProps) {
   // Handle expired or missing thumbnails
   const [imageError, setImageError] = useState(false);
-  const fallbackImage = '/blog-placeholder.jpg';
+  const fallbackImage = 'https://media.licdn.com/dms/image/v2/D4D0BAQGBoHISU63wpg/company-logo_200_200/B4DZWkEeJpHAAM-/0/1742214390982/gsmarketers_logo?e=1748476800&v=beta&t=q6haZ3dDgQuCEGiB4cOMRqUPRwyz79kANQNFMqLCIfU';
   
   const handleImageError = () => {
     console.log('Image failed to load:', post.thumbnail);
     setImageError(true);
   };
 
-  const imageUrl = imageError ? fallbackImage : post.thumbnail;
+  const imageUrl = imageError || !post.thumbnail ? fallbackImage : post.thumbnail;
   
   const getContentPreview = (content: string): string => {
     try {
@@ -62,6 +62,8 @@ export function BlogCard({ post }: BlogCardProps) {
               src={imageUrl}
               alt={post.title}
               onError={handleImageError}
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
