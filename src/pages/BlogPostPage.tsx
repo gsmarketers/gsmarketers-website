@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getPost, type NotionPost } from '@/lib/notion';
@@ -19,29 +19,38 @@ const BlogPostPage = () => {
   const [post, setPost] = useState<NotionPost | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState(false);
+  
+  const fallbackImage = 'https://media.licdn.com/dms/image/v2/D4D0BAQGBoHISU63wpg/company-logo_200_200/B4DZWkEeJpHAAM-/0/1742214390982/gsmarketers_logo?e=1748476800&v=beta&t=q6haZ3dDgQuCEGiB4cOMRqUPRwyz79kANQNFMqLCIfU';
+
+  const fetchPost = useCallback(async () => {
+    if (!slug) return;
+    
+    setIsLoading(true);
+    setError(null);
+    try {
+      const postData = await getPost(slug);
+      if (!postData) {
+        setError('Post not found');
+      } else {
+        setPost(postData);
+      }
+    } catch (err) {
+      console.error('Error fetching post:', err);
+      setError('Failed to load blog post. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [slug]);
 
   useEffect(() => {
-    const fetchPost = async () => {
-      if (!slug) return;
-      
-      setIsLoading(true);
-      setError(null);
-      try {
-        const postData = await getPost(slug);
-        if (!postData) {
-          setError('Post not found');
-        } else {
-          setPost(postData);
-        }
-      } catch (err) {
-        setError('Failed to load blog post. Please try again later.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchPost();
-  }, [slug]);
+  }, [fetchPost]);
+
+  const handleImageError = () => {
+    console.log('Image failed to load:', post?.thumbnail);
+    setImageError(true);
+  };
 
   if (isLoading) {
     return (
@@ -68,15 +77,7 @@ const BlogPostPage = () => {
     );
   }
 
-  const [imageError, setImageError] = useState(false);
-  const fallbackImage = '/blog-placeholder.jpg';
-  
-  const handleImageError = () => {
-    console.log('Image failed to load:', post.thumbnail);
-    setImageError(true);
-  };
-
-  const imageUrl = imageError ? fallbackImage : post.thumbnail;
+  const imageUrl = imageError || !post.thumbnail ? fallbackImage : post.thumbnail;
 
   // Ensure content is a string before passing to ReactMarkdown
   const processedContent = post.content && typeof post.content === 'string' 
@@ -132,6 +133,8 @@ const BlogPostPage = () => {
                 src={imageUrl}
                 alt={post.title}
                 onError={handleImageError}
+                loading="lazy"
+                decoding="async"
                 className="absolute inset-0 w-full h-full object-cover"
               />
             </div>
