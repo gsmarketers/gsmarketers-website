@@ -5,6 +5,7 @@ import { getPost, type NotionPost } from '@/lib/notion';
 import { formatDate } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { ArrowLeft, Calendar, User2 } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 
@@ -112,6 +113,7 @@ const BlogPostPage = () => {
 
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
             components={{
               // Allow raw HTML (e.g., for <details><summary> tags)
               details: ({ children }) => <details>{children}</details>,
