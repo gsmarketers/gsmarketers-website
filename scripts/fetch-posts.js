@@ -43,49 +43,31 @@ const notion = new Client({
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchAllBlocks(block_id) {
-  let results = [];
-  let nextCursor = undefined;
   let hasMore = true;
+  let nextCursor = null;
+  let blocks = [];
 
   while (hasMore) {
-    try {
-      const response = await notion.blocks.children.list({
-        block_id,
-        start_cursor: nextCursor,
-        page_size: 100
-      });
-      
-      results = [...results, ...response.results];
-      nextCursor = response.next_cursor;
-      hasMore = response.has_more;
+    const response = await notion.blocks.children.list({
+      block_id,
+      page_size: 100,
+      start_cursor: nextCursor
+    });
 
-      // Process nested blocks
-      for (const block of response.results) {
-        if (block.has_children) {
-          const nestedBlocks = await fetchAllBlocks(block.id);
-          results = [...results, ...nestedBlocks];
-        }
-      }
-    } catch (error) {
-      console.error(`Error fetching blocks for ${block_id}:`, error);
-      throw error;
+    blocks = blocks.concat(response.results);
+    hasMore = response.has_more;
+    nextCursor = response.next_cursor;
+  }
+
+  // Recursively fetch children for blocks that have them
+  for (const block of blocks) {
+    if (block.has_children && !block.children) {
+      const children = await fetchAllBlocks(block.id);
+      block.children = children;
     }
   }
 
-  return results;
-}
-
-async function fetchPageProperties(page_id, property_name) {
-  try {
-    const response = await notion.pages.properties.retrieve({
-      page_id,
-      property_id: property_name
-    });
-    return response;
-  } catch (error) {
-    console.error(`Error fetching property ${property_name} for page ${page_id}:`, error);
-    return null;
-  }
+  return blocks;
 }
 
 async function fetchPosts() {
@@ -136,111 +118,29 @@ async function fetchPosts() {
 
     console.log(`✨ Found ${response.results.length} published posts`);
 
+    let extractedTitle = '';
     for (const page of response.results) {
       // Add delay between processing each post to avoid rate limits
       await delay(1000);
-      let extractedTitle = '';
       try {
         // First, fetch the actual page content using the page ID
         console.log(`   📄 Processing post ID: ${page.id}`);
         
-        // Get the page content
-        const pageContent = await notion.blocks.children.list({
-          block_id: page.id,
-          page_size: 100
-        });
+        // Get the page properties
+        const properties = page.properties || {};
+        
+        // Get all content blocks
+        const allBlocks = await fetchAllBlocks(page.id);
+        console.log(`   Found ${allBlocks.length} content blocks`);
 
         // Process the content blocks
         let content = '';
-        for (const block of pageContent.results) {
-          // Handle different block types
-          switch (block.type) {
-            case 'heading_1':
-              if (!extractedTitle) {
-                extractedTitle = block.heading_1.rich_text.map(text => text.plain_text).join('');
-              }
-              content += `# ${block.heading_1.rich_text.map(text => text.plain_text).join('')}\n\n`;
-              break;
-            case 'heading_2':
-              content += `## ${block.heading_2.rich_text.map(text => text.plain_text).join('')}\n\n`;
-              break;
-            case 'heading_3':
-              content += `### ${block.heading_3.rich_text.map(text => text.plain_text).join('')}\n\n`;
-              break;
-            case 'paragraph':
-              content += `${block.paragraph.rich_text.map(text => text.plain_text).join('')}\n\n`;
-              break;
-            case 'bulleted_list_item':
-              content += `- ${block.bulleted_list_item.rich_text.map(text => text.plain_text).join('')}\n`;
-              break;
-            case 'numbered_list_item':
-              content += `1. ${block.numbered_list_item.rich_text.map(text => text.plain_text).join('')}\n`;
-              break;
-            case 'image':
-              const imageUrl = block.image.type === 'external' ? 
-                block.image.external.url : 
-                block.image.file.url;
-              const caption = block.image.caption?.length ? 
-                block.image.caption[0].plain_text : '';
-              content += `![${caption}](${imageUrl})\n\n`;
-              break;
-            case 'embed':
-              content += `Embed: ${block.embed.url}\n\n`;
-              break;
-            case 'bookmark':
-              content += `Bookmark: ${block.bookmark.url}\n\n`;
-              break;
-            case 'video':
-              content += `Video: ${block.video.type === 'external' ? 
-                block.video.external.url : 
-                block.video.file.url}\n\n`;
-              break;
-            case 'file':
-              content += `File: ${block.file.type === 'external' ? 
-                block.file.external.url : 
-                block.file.file.url}\n\n`;
-              break;
-            case 'to_do':
-              const checked = block.to_do.checked ? '[x]' : '[ ]';
-              content += `${checked} ${block.to_do.rich_text.map(text => text.plain_text).join('')}\n\n`;
-              break;
-            case 'toggle':
-              const toggleText = block.toggle.rich_text.map(text => text.plain_text).join('');
-              content += `> ${toggleText}\n\n`;
-              break;
-            case 'table':
-              try {
-                // Get the table's children (rows)
-                const rows = block.children || [];
-                const formattedRows = rows.map((row) => {
-                  if (!row?.table_row?.cells) return '';
-                  return row.table_row.cells.map((cell) => {
-                    if (!cell || !Array.isArray(cell)) return '';
-                    return cell.map((text) => text.plain_text).join('');
-                  }).join(' | ');
-                }).filter(Boolean); // Remove empty rows
-                
-                // Add table headers with markdown formatting
-                if (formattedRows.length > 0) {
-                  const header = formattedRows[0];
-                  const separator = formattedRows[0].split(' | ').map(() => '---').join(' | ');
-                  content += `${header}\n${separator}\n${formattedRows.slice(1).join('\n')}\n\n`;
-                }
-              } catch (error) {
-                console.error(`Error processing table block ${block.id}:`, error);
-              }
-              break;
-            default:
-              console.warn(`Unknown block type: ${block.type}`);
-              break;
-          }
+        for (const block of allBlocks) {
+          content += await processBlock(block, extractedTitle);
         }
 
-        // Get page properties
-        const properties = page.properties || {};
-        
         // Extract title from the first heading block
-        let title = extractedTitle || 'Untitled';
+        let title = extractedTitle || properties['Title']?.rich_text?.[0]?.plain_text || 'Untitled';
         const slug = title.toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/(^-|-$)+/g, '');
@@ -293,30 +193,95 @@ ${content}`;
         } else {
           console.log(`   ⏭️ No changes detected for "${title}"`);
         }
+        extractedTitle = '';
 
       } catch (error) {
         console.error(`Error processing post ${page.id}:`, error);
         console.error('Skipping this post due to error');
-        continue;
       }
     }
 
-    // Write the JSON file
-    if (!fs.existsSync(PUBLIC_DIR)) {
-      fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-    }
-
-    const postsJson = {
-      posts: processedPosts,
-      lastUpdated: new Date().toISOString()
-    };
-
-    fs.writeFileSync(POSTS_JSON_PATH, JSON.stringify(postsJson, null, 2), 'utf8');
+    // Generate JSON file
+    fs.writeFileSync(POSTS_JSON_PATH, JSON.stringify(processedPosts, null, 2), 'utf8');
     console.log(`✅ Successfully generated blog posts JSON with ${processedPosts.length} posts`);
 
   } catch (error) {
-    console.error('❌ Error in fetchPosts:', error);
-    throw error;
+    console.error('❌ Error fetching posts:', error);
+    process.exit(1);
+  }
+}
+
+async function processBlock(block, extractedTitle) {
+  try {
+    switch (block.type) {
+      case 'heading_1':
+        if (!extractedTitle) {
+          extractedTitle = block.heading_1.rich_text.map(text => text.plain_text).join('');
+        }
+        return `# ${block.heading_1.rich_text.map(text => text.plain_text).join('')}\n\n`;
+      case 'heading_2':
+        return `## ${block.heading_2.rich_text.map(text => text.plain_text).join('')}\n\n`;
+      case 'heading_3':
+        return `### ${block.heading_3.rich_text.map(text => text.plain_text).join('')}\n\n`;
+      case 'paragraph':
+        return `${block.paragraph.rich_text.map(text => text.plain_text).join('')}\n\n`;
+      case 'bulleted_list_item':
+        return `- ${block.bulleted_list_item.rich_text.map(text => text.plain_text).join('')}\n`;
+      case 'numbered_list_item':
+        return `1. ${block.numbered_list_item.rich_text.map(text => text.plain_text).join('')}\n`;
+      case 'image':
+        const imageUrl = block.image.type === 'external' ? 
+          block.image.external.url : 
+          block.image.file.url;
+        const caption = block.image.caption?.length ? 
+          block.image.caption[0].plain_text : '';
+        return `![${caption}](${imageUrl})\n\n`;
+      case 'embed':
+        return `Embed: ${block.embed.url}\n\n`;
+      case 'bookmark':
+        return `Bookmark: ${block.bookmark.url}\n\n`;
+      case 'video':
+        return `Video: ${block.video.type === 'external' ? 
+          block.video.external.url : 
+          block.video.file.url}\n\n`;
+      case 'file':
+        return `File: ${block.file.type === 'external' ? 
+          block.file.external.url : 
+          block.file.file.url}\n\n`;
+      case 'to_do':
+        const checked = block.to_do.checked ? '[x]' : '[ ]';
+        return `${checked} ${block.to_do.rich_text.map(text => text.plain_text).join('')}\n\n`;
+      case 'toggle':
+        const toggleText = block.toggle.rich_text.map(text => text.plain_text).join('');
+        return `> ${toggleText}\n\n`;
+      case 'table':
+        try {
+          const rows = block.children || [];
+          const formattedRows = rows.map((row) => {
+            if (!row?.table_row?.cells) return '';
+            return row.table_row.cells.map((cell) => {
+              if (!cell || !Array.isArray(cell)) return '';
+              return cell.map((text) => text.plain_text).join('');
+            }).join(' | ');
+          }).filter(Boolean);
+          
+          if (formattedRows.length > 0) {
+            const header = formattedRows[0];
+            const separator = formattedRows[0].split(' | ').map(() => '---').join(' | ');
+            return `${header}\n${separator}\n${formattedRows.slice(1).join('\n')}\n\n`;
+          }
+          return '';
+        } catch (error) {
+          console.error(`Error processing table block ${block.id}:`, error);
+          return '';
+        }
+      default:
+        console.warn(`Unknown block type: ${block.type}`);
+        return '';
+    }
+  } catch (error) {
+    console.error(`Error processing block ${block.id} (${block.type}):`, error);
+    return '';
   }
 }
 
