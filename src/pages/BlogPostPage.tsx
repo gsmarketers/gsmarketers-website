@@ -68,7 +68,15 @@ const BlogPostPage = () => {
     );
   }
 
-  const featuredImage = post.thumbnail;
+  const [imageError, setImageError] = useState(false);
+  const fallbackImage = '/blog-placeholder.jpg';
+  
+  const handleImageError = () => {
+    console.log('Image failed to load:', post.thumbnail);
+    setImageError(true);
+  };
+
+  const imageUrl = imageError ? fallbackImage : post.thumbnail;
 
   // Ensure content is a string before passing to ReactMarkdown
   const processedContent = post.content && typeof post.content === 'string' 
@@ -118,11 +126,12 @@ const BlogPostPage = () => {
             </div>
           </div>
 
-          {featuredImage && (
+          {imageUrl && (
             <div className="relative h-[400px] mb-8 rounded-2xl overflow-hidden">
               <img
-                src={featuredImage}
+                src={imageUrl}
                 alt={post.title}
+                onError={handleImageError}
                 className="absolute inset-0 w-full h-full object-cover"
               />
             </div>
