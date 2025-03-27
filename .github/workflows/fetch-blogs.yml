@@ -72,7 +72,7 @@ jobs:
           
           if [[ -n "$(git status --porcelain)" ]]; then
             echo "Changes detected, committing..."
-            git add public/blog-posts.json
+            git add public/blog-posts.json package-lock.json
             git commit -m "Update blog posts from Notion [skip ci]"
             git push
           else
