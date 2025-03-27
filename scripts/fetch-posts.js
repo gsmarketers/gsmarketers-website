@@ -237,31 +237,36 @@ async function fetchPosts() {
         }
 
         // Get page properties
-        const title = extractedTitle || fetchPageProperties(page.id, 'Title') || 'Untitled';
-        const slug = title.toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)+/g, '');
-        const date = fetchPageProperties(page.id, 'Published Date') || new Date().toISOString();
-        const thumbnail = fetchPageProperties(page.id, 'Thumbnail') || '';
+        const properties = page.properties || {};
+        
+        // Extract title from the first heading block
+        let title = extractedTitle || 'Untitled';
+        
+        // Get other properties
+        const date = properties['Published Date']?.date?.start || new Date().toISOString();
+        const thumbnail = properties['Thumbnail']?.files?.[0]?.file?.url || '';
 
         // Create post object
         const post = {
           id: page.id,
           title,
-          slug,
+          slug: title.toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)+/g, ''),
           date,
           thumbnail,
           content,
-          url: `/blog/${slug}`
+          url: `/blog/${post.slug}`
         };
 
         // Save to processedPosts
         processedPosts.push(post);
 
-        const filePath = path.join(BLOG_DIR, `${slug}.md`);
+        const filePath = path.join(BLOG_DIR, `${post.slug}.md`);
 
         const markdown = `---
-title: "${post.title.replace(/"/g, '\\"')}"
+title: "${post.title}"
+slug: "${post.slug}"
 date: "${post.date}"
 thumbnail: "${post.thumbnail || ''}"
 ---
@@ -269,7 +274,7 @@ thumbnail: "${post.thumbnail || ''}"
 ${post.content}`;
 
         // Only write if content has changed
-        const existingContent = existingPosts.get(slug);
+        const existingContent = existingPosts.get(post.slug);
         if (!existingContent || existingContent !== markdown) {
           console.log(`   💾 Saving updated content for "${post.title}"`);
           // Create backup before writing
@@ -279,7 +284,7 @@ ${post.content}`;
               fs.mkdirSync(backupPath);
             }
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            fs.copyFileSync(filePath, path.join(backupPath, `${slug}-${timestamp}.md`));
+            fs.copyFileSync(filePath, path.join(backupPath, `${post.slug}-${timestamp}.md`));
           }
 
           // Write new content
