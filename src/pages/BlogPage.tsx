@@ -48,12 +48,14 @@ const BlogPage = () => {
       setIsLoading(true);
       setError(null);
       try {
+        console.log('Fetching blog posts...');
         const { posts: newPosts, totalPages: total } = await getPosts(currentPage, POSTS_PER_PAGE);
+        console.log('Fetched posts:', newPosts);
         setPosts(newPosts);
         setTotalPages(total);
       } catch (err) {
+        console.error('Error fetching posts:', err);
         setError('Failed to load blog posts. Please try again later.');
-        console.error('Blog fetch error:', err);
       } finally {
         setIsLoading(false);
       }
