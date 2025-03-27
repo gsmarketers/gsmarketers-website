@@ -300,7 +300,10 @@ async function fetchPosts() {
           (properties.Slug?.rich_text?.[0]?.plain_text) ||
           titleFromProperty.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         const publishedDate = properties['Published Date']?.date?.start;
-        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
+        // Handle both external and internal thumbnail URLs
+        const thumbnail = properties.Thumbnail?.files?.[0]?.type === 'external' 
+          ? properties.Thumbnail.files[0].external.url
+          : properties.Thumbnail?.files?.[0]?.file?.url;
 
         console.log(`📄 Processing post ID: ${page.id}, Slug: ${slug}`);
 
@@ -412,7 +415,7 @@ ${post.content}`;
           slug,
           title: post.title,
           content: post.content,
-          thumbnail: post.thumbnail,
+          thumbnail: post.thumbnail || '/blog-placeholder.jpg',  // Fallback image
           date: post.date,
           lastEdited: post.lastEdited
         });
