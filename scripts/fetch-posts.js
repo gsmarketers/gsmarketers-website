@@ -36,7 +36,7 @@ if (!fs.existsSync(PUBLIC_DIR)) {
 
 const notion = new Client({
   auth: process.env.NOTION_TOKEN,
-  notionVersion: '2022-06-28' // Set the Notion API version as per the cURL command
+  notionVersion: '2022-06-28'
 });
 
 // Helper function to add delay between API calls
@@ -85,12 +85,21 @@ function processBlock(block, indentLevel = 0) {
   switch (block.type) {
     case 'heading_1':
       blockContent = `${indent}# ${block.heading_1?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
+      if (block.heading_1?.is_toggleable) {
+        blockContent = `${indent}<details><summary>${block.heading_1?.rich_text?.map((text) => text.plain_text).join('') || ''}</summary>\n\n`;
+      }
       break;
     case 'heading_2':
       blockContent = `${indent}## ${block.heading_2?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
+      if (block.heading_2?.is_toggleable) {
+        blockContent = `${indent}<details><summary>${block.heading_2?.rich_text?.map((text) => text.plain_text).join('') || ''}</summary>\n\n`;
+      }
       break;
     case 'heading_3':
       blockContent = `${indent}### ${block.heading_3?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
+      if (block.heading_3?.is_toggleable) {
+        blockContent = `${indent}<details><summary>${block.heading_3?.rich_text?.map((text) => text.plain_text).join('') || ''}</summary>\n\n`;
+      }
       break;
     case 'paragraph':
       blockContent = `${indent}${block.paragraph?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
@@ -102,15 +111,103 @@ function processBlock(block, indentLevel = 0) {
       blockContent = `${indent}1. ${block.numbered_list_item?.rich_text?.map((text) => text.plain_text).join('') || ''}\n`;
       break;
     case 'code':
-      blockContent = `${indent}\`\`\`\n${block.code?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\`\`\`\n\n`;
+      blockContent = `${indent}\`\`\`${block.code?.language || ''}\n${block.code?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\`\`\`\n\n`;
       break;
     case 'quote':
       blockContent = `${indent}> ${block.quote?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
       break;
     case 'image':
       const imageUrl = block.image?.type === 'external' ? block.image.external.url : block.image?.file?.url;
-      const caption = block.image?.caption?.length ? block.image.caption[0].plain_text : '';
-      blockContent = imageUrl ? `${indent}![${caption}](${imageUrl})\n\n` : '';
+      const imageCaption = block.image?.caption?.length ? block.image.caption.map((text) => text.plain_text).join('') : '';
+      blockContent = imageUrl ? `${indent}![${imageCaption}](${imageUrl})\n\n` : '';
+      break;
+    case 'callout':
+      const calloutIcon = block.callout?.icon?.emoji || block.callout?.icon?.external?.url || '';
+      blockContent = `${indent}> ${calloutIcon} ${block.callout?.rich_text?.map((text) => text.plain_text).join('') || ''}\n\n`;
+      break;
+    case 'divider':
+      blockContent = `${indent}---\n\n`;
+      break;
+    case 'child_page':
+      blockContent = `${indent}[Child Page: ${block.child_page?.title || 'Untitled'}](https://www.notion.so/${block.id.replace(/-/g, '')})\n\n`;
+      break;
+    case 'column_list':
+      // Column lists are just containers; process children (columns) directly
+      blockContent = '';
+      break;
+    case 'column':
+      // Columns are processed as part of column_list; just process their children
+      blockContent = '';
+      break;
+    case 'embed':
+      blockContent = `${indent}[Embed: ${block.embed?.url || ''}](${block.embed?.url || ''})\n\n`;
+      break;
+    case 'bookmark':
+      blockContent = `${indent}[Bookmark: ${block.bookmark?.url || ''}](${block.bookmark?.url || ''})\n\n`;
+      break;
+    case 'breadcrumb':
+      blockContent = `${indent}*(Breadcrumb navigation)*\n\n`;
+      break;
+    case 'child_database':
+      blockContent = `${indent}*(Child Database: ${block.child_database?.title || 'Untitled'})*\n\n`;
+      break;
+    case 'equation':
+      blockContent = `${indent}\$\$${block.equation?.expression || ''}\$\$\n\n`;
+      break;
+    case 'file':
+      const fileUrl = block.file?.type === 'external' ? block.file.external.url : block.file?.file?.url;
+      const fileCaption = block.file?.caption?.length ? block.file.caption.map((text) => text.plain_text).join('') : '';
+      blockContent = fileUrl ? `${indent}[File: ${fileCaption || 'Download'}](${fileUrl})\n\n` : '';
+      break;
+    case 'synced_block':
+      // Synced blocks reference another block; process their children
+      blockContent = '';
+      break;
+    case 'pdf':
+      const pdfUrl = block.pdf?.type === 'external' ? block.pdf.external.url : block.pdf?.file?.url;
+      const pdfCaption = block.pdf?.caption?.length ? block.pdf.caption.map((text) => text.plain_text).join('') : '';
+      blockContent = pdfUrl ? `${indent}[PDF: ${pdfCaption || 'View PDF'}](${pdfUrl})\n\n` : '';
+      break;
+    case 'table':
+      // Process table rows (children) as a Markdown table
+      if (block.has_children && block.children) {
+        const rows = block.children.map(row => {
+          const cells = row.table_row?.cells?.map(cell => cell.map(text => text.plain_text).join('')).join(' | ');
+          return `${indent}| ${cells} |`;
+        });
+        const header = block.table?.has_column_header && block.children.length > 0
+          ? rows.shift()
+          : `${indent}| ${Array(block.table?.table_width || 0).fill('Column').join(' | ')} |`;
+        const separator = `${indent}| ${Array(block.table?.table_width || 0).fill('---').join(' | ')} |`;
+        blockContent = `${indent}${header}\n${separator}\n${rows.join('\n')}\n\n`;
+      }
+      break;
+    case 'template':
+      blockContent = `${indent}*(Template block)*\n\n`;
+      break;
+    case 'to_do':
+      const checked = block.to_do?.checked ? '[x]' : '[ ]';
+      blockContent = `${indent}- ${checked} ${block.to_do?.rich_text?.map((text) => text.plain_text).join('') || ''}\n`;
+      break;
+    case 'toggle':
+      blockContent = `${indent}<details><summary>${block.toggle?.rich_text?.map((text) => text.plain_text).join('') || ''}</summary>\n\n`;
+      break;
+    case 'video':
+      const videoUrl = block.video?.type === 'external' ? block.video.external.url : block.video?.file?.url;
+      const videoCaption = block.video?.caption?.length ? block.video.caption.map((text) => text.plain_text).join('') : '';
+      blockContent = videoUrl ? `${indent}[Video: ${videoCaption || 'Watch Video'}](${videoUrl})\n\n` : '';
+      break;
+    case 'table_of_contents':
+      blockContent = `${indent}*(Table of Contents)*\n\n`;
+      break;
+    case 'mention':
+      const mentionText = block.mention?.type === 'page' ? `[Page Mention: ${block.mention.page.id}](https://www.notion.so/${block.mention.page.id.replace(/-/g, '')})` :
+        block.mention?.type === 'user' ? `@${block.mention.user?.name || 'User'}` :
+        block.mention?.type === 'date' ? block.mention.date?.start || '' : '*(Mention)*';
+      blockContent = `${indent}${mentionText}\n`;
+      break;
+    case 'link_preview':
+      blockContent = `${indent}[Link Preview: ${block.link_preview?.url || ''}](${block.link_preview?.url || ''})\n\n`;
       break;
     default:
       console.log(`   Unsupported block type: ${block.type}`);
@@ -123,6 +220,10 @@ function processBlock(block, indentLevel = 0) {
     console.log(`   Processing ${block.children.length} child blocks for block ${block.id}`);
     const childContents = block.children.map(child => processBlock(child, indentLevel + 1)).join('');
     blockContent += childContents;
+    // Close toggle blocks if applicable
+    if (['heading_1', 'heading_2', 'heading_3', 'toggle'].includes(block.type) && (block[block.type]?.is_toggleable || block.type === 'toggle')) {
+      blockContent += `${indent}</details>\n\n`;
+    }
   }
 
   return blockContent;
@@ -182,7 +283,6 @@ async function fetchPosts() {
       try {
         // Safely extract properties with fallbacks
         const properties = page.properties || {};
-        // "Title" is a text property, not used as the actual title
         const titleFromProperty = properties?.Title?.text?.[0]?.plain_text || '';
         const slug = (properties.Slug?.type === 'text' && properties.Slug.text?.[0]?.plain_text) ||
           (properties.Slug?.rich_text?.[0]?.plain_text) ||
@@ -208,27 +308,33 @@ async function fetchPosts() {
         for (const block of blocks) {
           await delay(100);
 
-          // Extract the title from the first heading
+          // Extract the title from the first heading, prioritizing heading_1
           if (isFirstHeading) {
             if (block.type === 'heading_1') {
               extractedTitle = block.heading_1?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
               isFirstHeading = false;
-            } else if (block.type === 'heading_2') {
+            } else if (block.type === 'heading_2' && isFirstHeading) {
               extractedTitle = block.heading_2?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
               isFirstHeading = false;
-            } else if (block.type === 'heading_3') {
+            } else if (block.type === 'heading_3' && isFirstHeading) {
               extractedTitle = block.heading_3?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
               isFirstHeading = false;
             } else if (block.type === 'paragraph' && block.has_children) {
-              // If the paragraph has children, check them for a heading
+              // Check nested blocks for a heading
               if (block.children) {
-                const firstChild = block.children.find(child =>
+                const firstChildHeading = block.children.find(child =>
                   ['heading_1', 'heading_2', 'heading_3'].includes(child.type)
                 );
-                if (firstChild) {
-                  extractedTitle = firstChild[firstChild.type]?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
+                if (firstChildHeading) {
+                  extractedTitle = firstChildHeading[firstChildHeading.type]?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
                   isFirstHeading = false;
                 }
+              }
+            } else if (block.type === 'paragraph' && !block.has_children && isFirstHeading) {
+              const paragraphText = block.paragraph?.rich_text?.map((text) => text.plain_text).join('') || '';
+              if (paragraphText) {
+                extractedTitle = paragraphText;
+                isFirstHeading = false;
               }
             }
           }
@@ -255,6 +361,7 @@ async function fetchPosts() {
 
         console.log(`   Extracted title: ${post.title}`);
         console.log(`   Content length: ${post.content.length} characters`);
+        console.log(`   Full content: ${post.content}`); // Log the full content for debugging
 
         const filePath = path.join(BLOG_DIR, `${slug}.md`);
 
