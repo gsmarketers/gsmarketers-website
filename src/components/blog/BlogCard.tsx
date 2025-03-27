@@ -1,6 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { formatDate } from 'date-fns';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import type { NotionPost } from '@/lib/notion';
 import { ArrowUpRight } from 'lucide-react';
 
@@ -10,6 +13,11 @@ interface BlogCardProps {
 
 export function BlogCard({ post }: BlogCardProps) {
   const featuredImage = post.thumbnail;
+
+  // Ensure the content preview is a string
+  const contentPreview = post.content && typeof post.content === 'string' 
+    ? post.content.split('\n\n')[0] 
+    : 'No content available';
 
   return (
     <Link to={`/blog/${post.slug}`} className="group block">
@@ -37,9 +45,31 @@ export function BlogCard({ post }: BlogCardProps) {
           </h2>
           
           <div className="text-white/70 line-clamp-3 mb-4">
-            {post.content ? 
-              post.content.split('\n\n')[0] || 'No content available' 
-              : 'No content available'}
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeRaw]}
+              components={{
+                // Remove unwanted elements like headings from the preview
+                h1: () => null,
+                h2: () => null,
+                h3: () => null,
+                h4: () => null,
+                h5: () => null,
+                h6: () => null,
+                // Style paragraphs and links
+                p: ({ node, ...props }) => <p className="text-white/70" {...props} />,
+                a: ({ node, ...props }) => (
+                  <a
+                    {...props}
+                    className="text-cyan-400 no-underline hover:underline"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  />
+                ),
+              }}
+            >
+              {contentPreview}
+            </ReactMarkdown>
           </div>
           
           <div className="flex items-center text-cyan-400 font-medium">
