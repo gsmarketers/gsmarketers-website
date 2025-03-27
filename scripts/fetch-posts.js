@@ -113,6 +113,9 @@ async function fetchPosts() {
 
         console.log(`   Found ${blocks.results.length} content blocks`);
 
+        // Log the raw block data to debug
+        console.log('   Raw blocks:', JSON.stringify(blocks.results, null, 2));
+
         let extractedTitle = titleFromProperty; // Fallback to the text property
         const contentBlocks = [];
         let isFirstHeading = true;
@@ -125,45 +128,45 @@ async function fetchPosts() {
 
           switch (block.type) {
             case 'heading_1':
-              blockContent = '# ' + block.heading_1.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              blockContent = '# ' + (block.heading_1?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n\n';
               if (isFirstHeading) {
-                extractedTitle = block.heading_1.rich_text.map((text) => text.plain_text).join('');
+                extractedTitle = block.heading_1?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
                 isFirstHeading = false;
               }
               break;
             case 'heading_2':
-              blockContent = '## ' + block.heading_2.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              blockContent = '## ' + (block.heading_2?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n\n';
               if (isFirstHeading) {
-                extractedTitle = block.heading_2.rich_text.map((text) => text.plain_text).join('');
+                extractedTitle = block.heading_2?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
                 isFirstHeading = false;
               }
               break;
             case 'heading_3':
-              blockContent = '### ' + block.heading_3.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              blockContent = '### ' + (block.heading_3?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n\n';
               if (isFirstHeading) {
-                extractedTitle = block.heading_3.rich_text.map((text) => text.plain_text).join('');
+                extractedTitle = block.heading_3?.rich_text?.map((text) => text.plain_text).join('') || extractedTitle;
                 isFirstHeading = false;
               }
               break;
             case 'paragraph':
-              blockContent = block.paragraph.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              blockContent = (block.paragraph?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n\n';
               break;
             case 'bulleted_list_item':
-              blockContent = '- ' + block.bulleted_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
+              blockContent = '- ' + (block.bulleted_list_item?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n';
               break;
             case 'numbered_list_item':
-              blockContent = '1. ' + block.numbered_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
+              blockContent = '1. ' + (block.numbered_list_item?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n';
               break;
             case 'code':
-              blockContent = '```\n' + block.code.rich_text.map((text) => text.plain_text).join('') + '\n```\n\n';
+              blockContent = '```\n' + (block.code?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n```\n\n';
               break;
             case 'quote':
-              blockContent = '> ' + block.quote.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              blockContent = '> ' + (block.quote?.rich_text?.map((text) => text.plain_text).join('') || '') + '\n\n';
               break;
             case 'image':
-              const imageUrl = block.image.type === 'external' ? block.image.external.url : block.image.file.url;
-              const caption = block.image.caption?.length ? block.image.caption[0].plain_text : '';
-              blockContent = `![${caption}](${imageUrl})\n\n`;
+              const imageUrl = block.image?.type === 'external' ? block.image.external.url : block.image?.file?.url;
+              const caption = block.image?.caption?.length ? block.image.caption[0].plain_text : '';
+              blockContent = imageUrl ? `![${caption}](${imageUrl})\n\n` : '';
               break;
             default:
               console.log(`   Unsupported block type: ${block.type}`);
