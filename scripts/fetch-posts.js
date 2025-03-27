@@ -141,21 +141,24 @@ async function fetchPosts() {
       await delay(1000);
       let extractedTitle = '';
       try {
-        // Fetch all blocks for the page
+        // First, fetch the actual page content using the page ID
         console.log(`   📄 Processing post ID: ${page.id}`);
-        console.log(`   Page properties:`, JSON.stringify(page.properties, null, 2));
         
+        // Get the page content
+        const pageContent = await notion.pages.retrieve({
+          page_id: page.id
+        });
+
+        // Get all blocks for the page
         const blocks = await fetchAllBlocks(page.id);
         
         console.log(`   Found ${blocks.length} content blocks`);
 
         const properties = page.properties || {};
         
-        // Extract title from Page Content field
-        const pageContent = properties['Page Content']?.title || [];
-        extractedTitle = pageContent.length > 0
-          ? pageContent.map(text => text.plain_text).join('')
-          : 'Untitled';
+        // Extract title from Title field
+        const titleProperty = properties['Title '];
+        extractedTitle = titleProperty?.rich_text?.[0]?.plain_text || 'Untitled';
         
         // Get full property values for properties that might exceed 25 references
         const slugProperty = await fetchPageProperties(page.id, 'Slug');
@@ -261,12 +264,15 @@ async function fetchPosts() {
                 return '';
               case 'unsupported':
                 return '';
+              case 'callout':
+                const calloutText = block.callout.rich_text.map((text) => text.plain_text).join('');
+                return `> ${calloutText}\n\n`;
               default:
                 console.warn(`Unhandled block type: ${block.type}`);
                 return '';
             }
           } catch (blockError) {
-            console.error(`Error processing block ${block.id}:`, blockError);
+            console.error(`Error processing block ${block.id} (${block.type}):`, blockError);
             return '';
           }
         }));
