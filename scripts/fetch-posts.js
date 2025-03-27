@@ -41,6 +41,24 @@ const notion = new Client({
 // Helper function to add delay between API calls
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+async function fetchAllBlocks(block_id) {
+  let results = [];
+  let nextCursor = null;
+
+  do {
+    const response = await notion.blocks.children.list({
+      block_id,
+      start_cursor: nextCursor,
+      page_size: 100
+    });
+    
+    results = [...results, ...response.results];
+    nextCursor = response.next_cursor;
+  } while (nextCursor);
+
+  return results;
+}
+
 async function fetchPosts() {
   try {
     console.log('📚 Fetching posts from Notion database...');
@@ -91,14 +109,12 @@ async function fetchPosts() {
 
     for (const page of response.results) {
       // Add delay between processing each post to avoid rate limits
-      await delay(500);
+      await delay(1000); // Increased delay to 1 second
       let extractedTitle = '';
       try {
-        const blocks = await notion.blocks.children.list({
-          block_id: page.id
-        });
+        const blocks = await fetchAllBlocks(page.id);
         
-        console.log(`   Found ${blocks.results.length} content blocks`);
+        console.log(`   Found ${blocks.length} content blocks`);
 
         const properties = page.properties || {};
         
@@ -115,33 +131,47 @@ async function fetchPosts() {
         
         console.log(`📄 Processing post: "${extractedTitle}" (${slug})`);
         
-        const content = await Promise.all(blocks.results.map(async (block) => {
+        const content = await Promise.all(blocks.map(async (block) => {
           // Add small delay between block processing
-          await delay(100);
+          await delay(200); // Increased delay to 200ms
           
-          switch (block.type) {
-            case 'paragraph':
-              return block.paragraph.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-            case 'heading_1':
-              return '# ' + block.heading_1.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-            case 'heading_2':
-              return '## ' + block.heading_2.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-            case 'heading_3':
-              return '### ' + block.heading_3.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-            case 'bulleted_list_item':
-              return '- ' + block.bulleted_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
-            case 'numbered_list_item':
-              return '1. ' + block.numbered_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
-            case 'code':
-              return '```\n' + block.code.rich_text.map((text) => text.plain_text).join('') + '\n```\n\n';
-            case 'quote':
-              return '> ' + block.quote.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-            case 'image':
-              const imageUrl = block.image.type === 'external' ? block.image.external.url : block.image.file.url;
-              const caption = block.image.caption?.length ? block.image.caption[0].plain_text : '';
-              return `![${caption}](${imageUrl})\n\n`;
-            default:
-              return '';
+          try {
+            switch (block.type) {
+              case 'paragraph':
+                return block.paragraph.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              case 'heading_1':
+                return '# ' + block.heading_1.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              case 'heading_2':
+                return '## ' + block.heading_2.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              case 'heading_3':
+                return '### ' + block.heading_3.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              case 'bulleted_list_item':
+                return '- ' + block.bulleted_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
+              case 'numbered_list_item':
+                return '1. ' + block.numbered_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
+              case 'code':
+                return '```\n' + block.code.rich_text.map((text) => text.plain_text).join('') + '\n```\n\n';
+              case 'quote':
+                return '> ' + block.quote.rich_text.map((text) => text.plain_text).join('') + '\n\n';
+              case 'image':
+                const imageUrl = block.image.type === 'external' ? block.image.external.url : block.image.file.url;
+                const caption = block.image.caption?.length ? block.image.caption[0].plain_text : '';
+                return `![${caption}](${imageUrl})\n\n`;
+              case 'embed':
+                return `Embed: ${block.embed.url}\n\n`;
+              case 'bookmark':
+                return `Bookmark: ${block.bookmark.url}\n\n`;
+              case 'video':
+                return `Video: ${block.video.type === 'external' ? block.video.external.url : block.video.file.url}\n\n`;
+              case 'file':
+                return `File: ${block.file.type === 'external' ? block.file.external.url : block.file.file.url}\n\n`;
+              default:
+                console.warn(`Unhandled block type: ${block.type}`);
+                return '';
+            }
+          } catch (blockError) {
+            console.error(`Error processing block ${block.id}:`, blockError);
+            return '';
           }
         }));
 
