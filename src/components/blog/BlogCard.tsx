@@ -10,9 +10,26 @@ interface BlogCardProps {
 
 export function BlogCard({ post }: BlogCardProps) {
   const featuredImage = post.thumbnail;
-  const contentPreview = typeof post.content === 'string' 
-    ? post.content.split('\n')[0].replace(/[#*`]/g, '').trim()
-    : '';
+  
+  const getContentPreview = (content: string): string => {
+    try {
+      // Split by newlines and find the first non-empty line that's not a heading
+      const lines = content.split('\n');
+      const preview = lines.find(line => {
+        const trimmed = line.trim();
+        return trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('>');
+      }) || '';
+      
+      // Clean up markdown syntax
+      return preview
+        .replace(/[#*`]/g, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Replace markdown links with just the text
+        .trim();
+    } catch (error) {
+      console.error('Error processing content preview:', error);
+      return '';
+    }
+  };
 
   const formatPostDate = (dateString: string) => {
     try {
@@ -53,7 +70,7 @@ export function BlogCard({ post }: BlogCardProps) {
           </h2>
           
           <div className="text-white/70 line-clamp-3 mb-4">
-            {contentPreview}
+            {getContentPreview(post.content || '')}
           </div>
           <div className="flex items-center text-cyan-400 font-medium mt-auto pt-4">
             Read More
