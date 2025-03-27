@@ -46,11 +46,12 @@ const BlogPage = () => {
   useEffect(() => {
     const fetchPosts = async () => {
       setIsLoading(true);
+      setPosts([]); // Clear existing posts while loading
       setError(null);
       try {
         console.log('Fetching blog posts...');
         const { posts: newPosts, totalPages: total } = await getPosts(currentPage, POSTS_PER_PAGE);
-        console.log('Fetched posts:', newPosts);
+        console.log(`Fetched ${newPosts.length} posts for page ${currentPage}`);
         setPosts(newPosts);
         setTotalPages(total);
       } catch (err) {
@@ -99,14 +100,15 @@ const BlogPage = () => {
             {posts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                 {posts.map((post) => (
-                  <motion.div
+                  <motion.article
                     key={post.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    className="h-full"
                   >
                     <BlogCard post={post} />
-                  </motion.div>
+                  </motion.article>
                 ))}
               </div>
             ) : (
@@ -119,11 +121,17 @@ const BlogPage = () => {
             )}
 
             {totalPages > 1 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-              />
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                />
+              </motion.div>
             )}
           </ErrorBoundary>
         )}
