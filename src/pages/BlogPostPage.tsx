@@ -10,6 +10,11 @@ import { ArrowLeft, Calendar, User2 } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 
 const BlogPostPage = () => {
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const { slug } = useParams<{ slug: string }>();
   const [post, setPost] = useState<NotionPost | null>(null);
   const [isLoading, setIsLoading] = useState(true);
