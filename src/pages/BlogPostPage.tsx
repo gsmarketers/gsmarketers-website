@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { getPost, type NotionPost } from '@/lib/notion';
-import { formatDate } from 'date-fns';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
+import { formatDate } from "date-fns";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 import { ArrowLeft, Calendar, User2 } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 
@@ -97,7 +97,19 @@ const BlogPostPage = () => {
           <div className="flex items-center gap-4 text-white/60 mb-8">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4" />
-              <time dateTime={post.date}>{formatDate(new Date(post.date), 'MMMM dd, yyyy')}</time>
+              <time dateTime={post.date}>
+                {(() => {
+                  try {
+                    const date = new Date(post.date);
+                    return isNaN(date.getTime()) 
+                      ? 'Invalid date' 
+                      : formatDate(date, 'MMMM dd, yyyy');
+                  } catch (error) {
+                    console.error('Error formatting date:', error);
+                    return 'Invalid date';
+                  }
+                })()}
+              </time>
             </div>
           </div>
 
@@ -115,11 +127,10 @@ const BlogPostPage = () => {
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeRaw]}
             components={{
-              // Allow raw HTML (e.g., for <details><summary> tags)
+              // Allow raw HTML (e.g., for <details><summary> tags) and apply styles
               details: ({ children }) => <details>{children}</details>,
               summary: ({ children }) => <summary>{children}</summary>,
-              // Custom styles for other elements
-              p: ({ node, ...props }) => <p className="mb-4 text-white/80 leading-relaxed" {...props} />,
+              p: ({ node, ...props }) => <p className="mb-6 text-white/80 leading-relaxed" {...props} />,
               a: ({ node, ...props }) => (
                 <a
                   {...props}
@@ -131,7 +142,7 @@ const BlogPostPage = () => {
               code: ({ node, inline, className, children, ...props }) => {
                 const match = /language-(\w+)/.exec(className || '');
                 return !inline ? (
-                  <pre className="bg-white/5 p-4 rounded-lg overflow-x-auto">
+                  <pre className="bg-white/5 p-4 rounded-lg overflow-x-auto my-6">
                     <code className={className} {...props}>
                       {children}
                     </code>
@@ -142,16 +153,48 @@ const BlogPostPage = () => {
                   </code>
                 );
               },
+              h1: ({ node, ...props }) => (
+                <h1 className="text-white font-semibold text-3xl mt-12 mb-6" {...props} />
+              ),
+              h2: ({ node, ...props }) => (
+                <h2 className="text-white font-semibold text-2xl mt-10 mb-6" {...props} />
+              ),
+              h3: ({ node, ...props }) => (
+                <h3 className="text-white font-semibold text-xl mt-8 mb-4" {...props} />
+              ),
+              blockquote: ({ node, ...props }) => (
+                <blockquote className="border-l-4 border-cyan-400 pl-4 py-2 my-6 text-white/70" {...props} />
+              ),
+              ol: ({ node, ...props }) => (
+                <ol className="text-white/80 list-decimal pl-6 my-6 space-y-2" {...props} />
+              ),
+              ul: ({ node, ...props }) => (
+                <ul className="text-white/80 list-disc pl-6 my-6 space-y-2" {...props} />
+              ),
+              li: ({ node, ...props }) => (
+                <li className="marker:text-cyan-400 mb-2" {...props} />
+              ),
+              table: ({ node, ...props }) => (
+                <div className="my-6 w-full overflow-x-auto">
+                  <table className="w-full border-collapse" {...props} />
+                </div>
+              ),
+              thead: ({ node, ...props }) => (
+                <thead className="bg-white/5" {...props} />
+              ),
+              tbody: ({ node, ...props }) => (
+                <tbody className="divide-y divide-white/10" {...props} />
+              ),
+              tr: ({ node, ...props }) => (
+                <tr className="border-b border-white/10" {...props} />
+              ),
+              th: ({ node, ...props }) => (
+                <th className="px-4 py-3 text-left text-sm font-semibold text-white" {...props} />
+              ),
+              td: ({ node, ...props }) => (
+                <td className="px-4 py-3 text-sm text-white/80" {...props} />
+              )
             }}
-            className="prose prose-invert prose-cyan max-w-none
-                     prose-headings:text-white prose-headings:font-semibold
-                     prose-p:text-white/80 prose-p:leading-relaxed
-                     prose-a:text-cyan-400 prose-a:no-underline hover:prose-a:underline
-                     prose-strong:text-white prose-strong:font-semibold
-                     prose-blockquote:border-cyan-400 prose-blockquote:text-white/70
-                     prose-code:text-cyan-400 prose-pre:bg-white/5
-                     prose-ol:text-white/80 prose-ul:text-white/80
-                     prose-li:marker:text-cyan-400"
           >
             {processedContent}
           </ReactMarkdown>
