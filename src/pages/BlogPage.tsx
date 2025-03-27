@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Component, ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { getPosts, type NotionPost } from '@/lib/notion';
 import { BlogCard } from '@/components/blog/BlogCard';
@@ -8,6 +8,34 @@ import { Loader2, AlertCircle } from 'lucide-react';
 
 const POSTS_PER_PAGE = 9;
 
+// Error Boundary Component
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Error in BlogPage:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
+          <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+          <h3 className="text-xl font-semibold mb-2 text-red-400">Something went wrong</h3>
+          <p className="text-white/60 max-w-md">
+            An error occurred while rendering the blog posts. Please try again later.
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const BlogPage = () => {
   const [posts, setPosts] = useState<NotionPost[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -16,49 +44,23 @@ const BlogPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Add a flag to prevent state updates if component unmounts
-    let isActive = true;
-    
     const fetchPosts = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const result = await getPosts(currentPage, POSTS_PER_PAGE);
-        
-        // Check if data is properly structured before updating state
-        if (isActive && result && typeof result === 'object') {
-          const newPosts = result.posts || [];
-          const total = result.totalPages || 0;
-          setPosts(newPosts);
-          setTotalPages(total);
-        } else if (isActive) {
-          setError('Invalid data received from server.');
-          console.error('Invalid data format:', result);
-        }
+        const { posts: newPosts, totalPages: total } = await getPosts(currentPage, POSTS_PER_PAGE);
+        setPosts(newPosts);
+        setTotalPages(total);
       } catch (err) {
-        if (isActive) {
-          setError('Failed to load blog posts. Please try again later.');
-          console.error('Blog fetch error:', err);
-        }
+        setError('Failed to load blog posts. Please try again later.');
+        console.error('Blog fetch error:', err);
       } finally {
-        if (isActive) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       }
     };
 
     fetchPosts();
-    
-    // Cleanup function to prevent state updates after unmount
-    return () => {
-      isActive = false;
-    };
   }, [currentPage]);
-
-  // Add a safety check at the component level
-  if (typeof window === 'undefined') {
-    return null; // Return null during server-side rendering
-  }
 
   return (
     <div className="min-h-screen pt-32 pb-16">
@@ -91,17 +93,17 @@ const BlogPage = () => {
             </p>
           </div>
         ) : (
-          <>
-            {posts && posts.length > 0 ? (
+          <ErrorBoundary>
+            {posts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                 {posts.map((post) => (
                   <motion.div
-                    key={post?.id || Math.random().toString()}
+                    key={post.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5 }}
                   >
-                    {post ? <BlogCard post={post} /> : null}
+                    <BlogCard post={post} />
                   </motion.div>
                 ))}
               </div>
@@ -121,7 +123,7 @@ const BlogPage = () => {
                 onPageChange={setCurrentPage}
               />
             )}
-          </>
+          </ErrorBoundary>
         )}
       </div>
     </div>
