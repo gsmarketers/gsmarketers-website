@@ -26,34 +26,24 @@ function Header1() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setOpen] = useState(false);
-  
-  const handleScrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-  };
 
   const handleNavigation = (href: string) => {
     if (href.startsWith('/#')) {
       const elementId = href.substring(2);
       if (location.pathname !== '/') {
-        navigate('/');
-        // Let the App component handle the scrolling
+        navigate('/', { state: { scrollTo: elementId } });
       } else {
         const element = document.getElementById(elementId);
         element?.scrollIntoView({ behavior: 'smooth' });
       }
     } else if (href === '/') {
       if (location.pathname === '/') {
-        handleScrollToTop();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         navigate(href);
-        handleScrollToTop();
       }
     } else {
       navigate(href);
-      handleScrollToTop();
     }
     setOpen(false);
   };
