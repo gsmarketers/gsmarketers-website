@@ -10,11 +10,22 @@ interface BlogCardProps {
 
 export function BlogCard({ post }: BlogCardProps) {
   const featuredImage = post.thumbnail;
+  const contentPreview = typeof post.content === 'string' 
+    ? post.content.split('\n')[0].replace(/[#*`]/g, '').trim()
+    : '';
 
-  // Ensure the content preview is a string
-  const contentPreview = post.content && typeof post.content === 'string' 
-    ? post.content.split('\n\n')[0] 
-    : 'No content available';
+  const formatPostDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Invalid date';
+      }
+      return formatDate(date, 'MMMM dd, yyyy');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid date';
+    }
+  };
 
   return (
     <Link to={`/blog/${post.slug}`} className="group block">
@@ -34,7 +45,7 @@ export function BlogCard({ post }: BlogCardProps) {
         
         <div className="p-6">
           <div className="flex items-center gap-2 text-sm text-white/60 mb-3">
-            <time dateTime={post.date}>{formatDate(new Date(post.date))}</time>
+            <time dateTime={post.date}>{formatPostDate(post.date)}</time>
           </div>
           
           <h2 className="text-xl font-semibold mb-3 text-white group-hover:text-white/90 transition-colors line-clamp-2">
