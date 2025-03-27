@@ -68,6 +68,9 @@ const BlogPostPage = () => {
     ? post.content 
     : 'No content available';
 
+  // Debug log to confirm the value of processedContent
+  console.log('Processed content for ReactMarkdown:', processedContent);
+
   return (
     <div className="min-h-screen pt-32 pb-16">
       <article className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
