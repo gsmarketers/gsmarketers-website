@@ -51,7 +51,7 @@ async function fetchAllBlocks(block_id) {
     const response = await notion.blocks.children.list({
       block_id,
       page_size: 100,
-      start_cursor: nextCursor
+      ...(nextCursor ? { start_cursor: nextCursor } : {})
     });
 
     blocks = blocks.concat(response.results);
