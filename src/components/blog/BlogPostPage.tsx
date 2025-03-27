@@ -9,14 +9,18 @@ interface NotionPost {
 }
 
 export function BlogPostPage({ post }: { post: NotionPost }) {
+  // Ensure content is a string and not empty
+  const processedContent = post.content ? post.content : 'No content available';
+
   return (
     <article className="prose prose-invert max-w-none">
-      {featuredImage && (
+      {post.featuredImage && (
         <div className="relative h-[400px] mb-8 rounded-2xl overflow-hidden">
           <img
             src={post.featuredImage}
             alt={post.title}
             className="absolute inset-0 w-full h-full object-cover"
+            loading="lazy"
           />
         </div>
       )}
@@ -66,7 +70,7 @@ export function BlogPostPage({ post }: { post: NotionPost }) {
           },
         }}
       >
-        {post.content}
+        {processedContent}
       </ReactMarkdown>
     </article>
   );
