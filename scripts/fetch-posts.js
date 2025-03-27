@@ -145,190 +145,118 @@ async function fetchPosts() {
         console.log(`   📄 Processing post ID: ${page.id}`);
         
         // Get the page content
-        const pageContent = await notion.pages.retrieve({
-          page_id: page.id
+        const pageContent = await notion.blocks.children.list({
+          block_id: page.id,
+          page_size: 100
         });
 
-        // Get all blocks for the page
-        const blocks = await fetchAllBlocks(page.id);
-        
-        console.log(`   Found ${blocks.length} content blocks`);
-
-        const properties = page.properties || {};
-        
-        // Extract title from Title field
-        const titleProperty = properties['Title '];
-        extractedTitle = titleProperty?.rich_text?.[0]?.plain_text || 'Untitled';
-        
-        // Get full property values for properties that might exceed 25 references
-        const slugProperty = await fetchPageProperties(page.id, 'Slug');
-        const dateProperty = await fetchPageProperties(page.id, 'Published Date');
-        const thumbnailProperty = await fetchPageProperties(page.id, 'Thumbnail');
-
-        const slug = slugProperty?.rich_text?.[0]?.plain_text || 
-          extractedTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        const publishedDate = dateProperty?.date?.start;
-        const thumbnail = thumbnailProperty?.files?.[0]?.file?.url;
-        
-        console.log(`📄 Processing post: "${extractedTitle}" (${slug})`);
-        console.log(`   Slug: ${slug}`);
-        console.log(`   Published Date: ${publishedDate}`);
-        console.log(`   Thumbnail: ${thumbnail}`);
-        
-        const content = await Promise.all(blocks.map(async (block) => {
-          // Add small delay between block processing
-          await delay(200);
-          
-          try {
-            switch (block.type) {
-              case 'paragraph':
-                return block.paragraph.rich_text.map((text) => {
-                  const plainText = text.plain_text;
-                  if (text.annotations.bold) return `**${plainText}**`;
-                  if (text.annotations.italic) return `*${plainText}*`;
-                  if (text.annotations.strikethrough) return `~~${plainText}~~`;
-                  if (text.annotations.code) return `{${plainText}}`;
-                  if (text.annotations.color !== 'default') {
-                    return `{${text.annotations.color} ${plainText}}`;
-                  }
-                  return plainText;
-                }).join('') + '\n\n';
-              case 'heading_1':
-                return '# ' + block.heading_1.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-              case 'heading_2':
-                return '## ' + block.heading_2.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-              case 'heading_3':
-                return '### ' + block.heading_3.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-              case 'bulleted_list_item':
-                return '- ' + block.bulleted_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
-              case 'numbered_list_item':
-                return '1. ' + block.numbered_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
-              case 'code':
-                const language = block.code.language || 'text';
-                return '```' + language + '\n' + 
-                       block.code.rich_text.map((text) => text.plain_text).join('') + 
-                       '\n``\n\n';
-              case 'quote':
-                return '> ' + block.quote.rich_text.map((text) => text.plain_text).join('') + '\n\n';
-              case 'image':
-                const imageUrl = block.image.type === 'external' ? 
-                  block.image.external.url : 
-                  block.image.file.url;
-                const caption = block.image.caption?.length ? 
-                  block.image.caption[0].plain_text : '';
-                return `![${caption}](${imageUrl})\n\n`;
-              case 'embed':
-                return `Embed: ${block.embed.url}\n\n`;
-              case 'bookmark':
-                return `Bookmark: ${block.bookmark.url}\n\n`;
-              case 'video':
-                return `Video: ${block.video.type === 'external' ? 
-                  block.video.external.url : 
-                  block.video.file.url}\n\n`;
-              case 'file':
-                return `File: ${block.file.type === 'external' ? 
-                  block.file.external.url : 
-                  block.file.file.url}\n\n`;
-              case 'to_do':
-                const checked = block.to_do.checked ? '[x]' : '[ ]';
-                return `${checked} ${block.to_do.rich_text.map((text) => text.plain_text).join('')}\n\n`;
-              case 'toggle':
-                const toggleText = block.toggle.rich_text.map((text) => text.plain_text).join('');
-                return `> ${toggleText}\n\n`;
-              case 'table':
-                try {
-                  // Get the table's children (rows)
-                  const rows = block.children || [];
-                  const formattedRows = rows.map((row) => {
-                    if (!row?.table_row?.cells) return '';
-                    return row.table_row.cells.map((cell) => {
-                      if (!cell || !Array.isArray(cell)) return '';
-                      return cell.map((text) => text.plain_text).join('');
-                    }).join(' | ');
-                  }).filter(Boolean); // Remove empty rows
-                  
-                  // Add table headers with markdown formatting
-                  if (formattedRows.length > 0) {
-                    const header = formattedRows[0];
-                    const separator = formattedRows[0].split(' | ').map(() => '---').join(' | ');
-                    return `${header}\n${separator}\n${formattedRows.slice(1).join('\n')}\n\n`;
-                  }
-                  return '';
-                } catch (error) {
-                  console.error(`Error processing table block ${block.id}:`, error);
-                  return '';
+        // Process the content blocks
+        let content = '';
+        for (const block of pageContent.results) {
+          // Handle different block types
+          switch (block.type) {
+            case 'heading_1':
+              if (!extractedTitle) {
+                extractedTitle = block.heading_1.rich_text.map(text => text.plain_text).join('');
+              }
+              content += `# ${block.heading_1.rich_text.map(text => text.plain_text).join('')}\n\n`;
+              break;
+            case 'heading_2':
+              content += `## ${block.heading_2.rich_text.map(text => text.plain_text).join('')}\n\n`;
+              break;
+            case 'heading_3':
+              content += `### ${block.heading_3.rich_text.map(text => text.plain_text).join('')}\n\n`;
+              break;
+            case 'paragraph':
+              content += `${block.paragraph.rich_text.map(text => text.plain_text).join('')}\n\n`;
+              break;
+            case 'bulleted_list_item':
+              content += `- ${block.bulleted_list_item.rich_text.map(text => text.plain_text).join('')}\n`;
+              break;
+            case 'numbered_list_item':
+              content += `1. ${block.numbered_list_item.rich_text.map(text => text.plain_text).join('')}\n`;
+              break;
+            case 'image':
+              const imageUrl = block.image.type === 'external' ? 
+                block.image.external.url : 
+                block.image.file.url;
+              const caption = block.image.caption?.length ? 
+                block.image.caption[0].plain_text : '';
+              content += `![${caption}](${imageUrl})\n\n`;
+              break;
+            case 'embed':
+              content += `Embed: ${block.embed.url}\n\n`;
+              break;
+            case 'bookmark':
+              content += `Bookmark: ${block.bookmark.url}\n\n`;
+              break;
+            case 'video':
+              content += `Video: ${block.video.type === 'external' ? 
+                block.video.external.url : 
+                block.video.file.url}\n\n`;
+              break;
+            case 'file':
+              content += `File: ${block.file.type === 'external' ? 
+                block.file.external.url : 
+                block.file.file.url}\n\n`;
+              break;
+            case 'to_do':
+              const checked = block.to_do.checked ? '[x]' : '[ ]';
+              content += `${checked} ${block.to_do.rich_text.map(text => text.plain_text).join('')}\n\n`;
+              break;
+            case 'toggle':
+              const toggleText = block.toggle.rich_text.map(text => text.plain_text).join('');
+              content += `> ${toggleText}\n\n`;
+              break;
+            case 'table':
+              try {
+                // Get the table's children (rows)
+                const rows = block.children || [];
+                const formattedRows = rows.map((row) => {
+                  if (!row?.table_row?.cells) return '';
+                  return row.table_row.cells.map((cell) => {
+                    if (!cell || !Array.isArray(cell)) return '';
+                    return cell.map((text) => text.plain_text).join('');
+                  }).join(' | ');
+                }).filter(Boolean); // Remove empty rows
+                
+                // Add table headers with markdown formatting
+                if (formattedRows.length > 0) {
+                  const header = formattedRows[0];
+                  const separator = formattedRows[0].split(' | ').map(() => '---').join(' | ');
+                  content += `${header}\n${separator}\n${formattedRows.slice(1).join('\n')}\n\n`;
                 }
-              case 'table_row':
-                return block.table_row.cells.map((cell) => {
-                  if (!cell) return '';
-                  if (!Array.isArray(cell)) return '';
-                  return cell.map((text) => text.plain_text).join('')
-                }).join(' | ') + '\n';
-
-              case 'table_cell':
-                return block.table_cell.rich_text.map((text) => text.plain_text).join('');
-
-              case 'column_list':
-                return '';
-              case 'column':
-                return '';
-              case 'synced_block':
-                return '';
-              case 'template':
-                return '';
-              case 'child_page':
-                return '';
-              case 'child_database':
-                return '';
-              case 'link_preview':
-                return '';
-              case 'link_to_page':
-                return '';
-              case 'unsupported':
-                return '';
-              case 'callout':
-                const calloutText = block.callout.rich_text.map((text) => text.plain_text).join('');
-                return `> ${calloutText}\n\n`;
-              default:
-                console.warn(`Unhandled block type: ${block.type}`);
-                return '';
-            }
-          } catch (blockError) {
-            console.error(`Error processing block ${block.id} (${block.type}):`, blockError);
-            return '';
+              } catch (error) {
+                console.error(`Error processing table block ${block.id}:`, error);
+              }
+              break;
+            default:
+              console.warn(`Unknown block type: ${block.type}`);
+              break;
           }
-        }));
+        }
 
-        // Clean up content by removing extra newlines and empty lines
-        const cleanedContent = content.join('').replace(/\n\n+/g, '\n\n').trim();
+        // Get page properties
+        const title = extractedTitle || fetchPageProperties(page.id, 'Title') || 'Untitled';
+        const slug = title.toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)+/g, '');
+        const date = fetchPageProperties(page.id, 'Published Date') || new Date().toISOString();
+        const thumbnail = fetchPageProperties(page.id, 'Thumbnail') || '';
 
-        // Convert markdown to HTML for preview
-        const processedContent = cleanedContent
-          ? cleanedContent
-              .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // Convert links
-              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Convert bold
-              .replace(/\*(.*?)\*/g, '<em>$1</em>') // Convert italic
-              .replace(/~~(.*?)~~/g, '<del>$1</del>') // Convert strikethrough
-              .replace(/\{(.*?)\}/g, '<span class="code">$1</span>') // Convert code
-              .replace(/\n\n/g, '<br><br>') // Convert newlines to HTML breaks
-              .replace(/\n/g, '<br>') // Convert single newlines to HTML breaks
-              .replace(/`(.*?)`/g, '<code>$1</code>') // Convert inline code
-              .replace(/```(.*?)```/g, '<pre><code>$1</code></pre>') // Convert code blocks
-              .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1">') // Convert images
-              .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // Convert links
-              .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>') // Convert links
-          : 'No content available';
-
+        // Create post object
         const post = {
           id: page.id,
+          title,
           slug,
-          title: extractedTitle,
-          content: cleanedContent, // Store raw markdown
-          processedContent, // Store processed HTML for preview
+          date,
           thumbnail,
-          date: publishedDate || page.created_time,
-          lastEdited: page.last_edited_time
+          content,
+          url: `/blog/${slug}`
         };
+
+        // Save to processedPosts
+        processedPosts.push(post);
 
         const filePath = path.join(BLOG_DIR, `${slug}.md`);
 
@@ -336,7 +264,6 @@ async function fetchPosts() {
 title: "${post.title.replace(/"/g, '\\"')}"
 date: "${post.date}"
 thumbnail: "${post.thumbnail || ''}"
-lastEdited: "${post.lastEdited}"
 ---
 
 ${post.content}`;
@@ -344,7 +271,7 @@ ${post.content}`;
         // Only write if content has changed
         const existingContent = existingPosts.get(slug);
         if (!existingContent || existingContent !== markdown) {
-          console.log(`   💾 Saving updated content for "${extractedTitle}"`);
+          console.log(`   💾 Saving updated content for "${post.title}"`);
           // Create backup before writing
           if (fs.existsSync(filePath)) {
             const backupPath = path.join(BLOG_DIR, '.backups');
@@ -358,21 +285,8 @@ ${post.content}`;
           // Write new content
           fs.writeFileSync(filePath, markdown, 'utf8');
         } else {
-          console.log(`   ⏭️ No changes detected for "${extractedTitle}"`);
+          console.log(`   ⏭️ No changes detected for "${post.title}"`);
         }
-
-        // Add processed post to array for JSON
-        processedPosts.push({
-          id: page.id,
-          slug,
-          title: post.title,
-          content: post.content,
-          processedContent: post.processedContent,
-          thumbnail: post.thumbnail,
-          date: post.date,
-          lastEdited: post.lastEdited
-        });
-        console.log(`Added post to processedPosts. Current count: ${processedPosts.length}`);
 
       } catch (error) {
         console.error(`Error processing post ${page.id}:`, error);
