@@ -169,17 +169,32 @@ function processBlock(block, indentLevel = 0) {
       blockContent = pdfUrl ? `${indent}[PDF: ${pdfCaption || 'View PDF'}](${pdfUrl})\n\n` : '';
       break;
     case 'table':
-      // Process table rows (children) as a Markdown table
       if (block.has_children && block.children) {
-        const rows = block.children.map(row => {
-          const cells = row.table_row?.cells?.map(cell => cell.map(text => text.plain_text).join('')).join(' | ');
-          return `${indent}| ${cells} |`;
+        // Get table width from first row
+        const tableWidth = block.children[0]?.table_row?.cells?.length || 0;
+        
+        // Process rows
+        const rows = block.children.map((row, rowIndex) => {
+          const cells = row.table_row?.cells || [];
+          // Ensure each cell has content and proper spacing
+          const formattedCells = cells.map(cell => {
+            const cellContent = cell.map(text => text.plain_text).join('').trim();
+            return cellContent || ' ';
+          });
+          
+          // Pad cells to match table width
+          while (formattedCells.length < tableWidth) {
+            formattedCells.push(' ');
+          }
+          
+          return `| ${formattedCells.join(' | ')} |`;
         });
-        const header = block.table?.has_column_header && block.children.length > 0
-          ? rows.shift()
-          : `${indent}| ${Array(block.table?.table_width || 0).fill('Column').join(' | ')} |`;
-        const separator = `${indent}| ${Array(block.table?.table_width || 0).fill('---').join(' | ')} |`;
-        blockContent = `${indent}${header}\n${separator}\n${rows.join('\n')}\n\n`;
+        
+        // Create header separator
+        const separator = `|${Array(tableWidth).fill('---').map(s => ` ${s} `).join('|')}|`;
+        
+        // Combine all parts with proper spacing
+        blockContent = `\n${rows[0]}\n${separator}\n${rows.slice(1).join('\n')}\n\n`;
       }
       break;
     case 'template':
