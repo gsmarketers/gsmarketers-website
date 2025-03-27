@@ -197,9 +197,6 @@ function processBlock(block, indentLevel = 0) {
         blockContent = `\n${rows[0]}\n${separator}\n${rows.slice(1).join('\n')}\n\n`;
       }
       break;
-    case 'template':
-      blockContent = `${indent}*(Template block)*\n\n`;
-      break;
     case 'to_do':
       const checked = block.to_do?.checked ? '[x]' : '[ ]';
       blockContent = `${indent}- ${checked} ${block.to_do?.rich_text?.map((text) => text.plain_text).join('') || ''}\n`;
