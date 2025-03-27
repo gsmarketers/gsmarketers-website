@@ -31,23 +31,26 @@ export function BlogCard({ post }: BlogCardProps) {
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           </div>
         )}
-
+        
         <div className="p-6">
           <div className="flex items-center gap-2 text-sm text-white/60 mb-3">
             <time dateTime={post.date}>{formatDate(new Date(post.date))}</time>
           </div>
-
+          
           <h2 className="text-xl font-semibold mb-3 text-white group-hover:text-white/90 transition-colors line-clamp-2">
             {post.title}
           </h2>
-
+          
           <div className="text-white/70 line-clamp-3 mb-4">
             {contentPreview}
           </div>
-
+          
           <div className="flex items-center text-cyan-400 font-medium">
             Read More
             <ArrowUpRight className="w-4 h-4 ml-1 transition-transform duration-300 group-hover:translate-x-1" />
           </div>
         </div>
       </article>
+    </Link>
+  );
+}
