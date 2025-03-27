@@ -28,8 +28,8 @@ export function BlogCard({ post }: BlogCardProps) {
   };
 
   return (
-    <Link to={`/blog/${post.slug}`} className="group block">
-      <article className="relative overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 transition-all duration-300 hover:bg-white/10">
+    <Link to={`/blog/${post.slug}`} className="group block h-full">
+      <article className="relative overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 transition-all duration-300 hover:bg-white/10 h-full flex flex-col">
         {featuredImage && (
           <div className="relative h-48 overflow-hidden">
             {featuredImage && (
@@ -43,7 +43,7 @@ export function BlogCard({ post }: BlogCardProps) {
           </div>
         )}
         
-        <div className="p-6">
+        <div className="p-6 flex flex-col flex-grow">
           <div className="flex items-center gap-2 text-sm text-white/60 mb-3">
             <time dateTime={post.date}>{formatPostDate(post.date)}</time>
           </div>
@@ -55,8 +55,7 @@ export function BlogCard({ post }: BlogCardProps) {
           <div className="text-white/70 line-clamp-3 mb-4">
             {contentPreview}
           </div>
-          
-          <div className="flex items-center text-cyan-400 font-medium">
+          <div className="flex items-center text-cyan-400 font-medium mt-auto pt-4">
             Read More
             <ArrowUpRight className="w-4 h-4 ml-1 transition-transform duration-300 group-hover:translate-x-1" />
           </div>
