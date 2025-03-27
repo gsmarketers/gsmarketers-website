@@ -22,7 +22,7 @@ export default defineConfig({
     }
   },
   define: {
-    __WS_TOKEN__: JSON.stringify(WS_HMR_TOKEN)
+    'import.meta.env.__WS_TOKEN__': JSON.stringify(WS_HMR_TOKEN)
   },
   server: {
     hmr: {
@@ -32,7 +32,8 @@ export default defineConfig({
       timeout: 5000,
       overlay: true,
       path: '/@vite/client',
-      wsToken: WS_HMR_TOKEN
+      wsToken: WS_HMR_TOKEN,
+      clientToken: WS_HMR_TOKEN
     },
     setupMiddleware: (middleware, server) => {
       // Ensure blog-posts.json exists
