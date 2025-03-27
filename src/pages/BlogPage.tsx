@@ -16,23 +16,49 @@ const BlogPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Add a flag to prevent state updates if component unmounts
+    let isActive = true;
+    
     const fetchPosts = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const { posts: newPosts, totalPages: total } = await getPosts(currentPage, POSTS_PER_PAGE);
-        setPosts(newPosts);
-        setTotalPages(total);
+        const result = await getPosts(currentPage, POSTS_PER_PAGE);
+        
+        // Check if data is properly structured before updating state
+        if (isActive && result && typeof result === 'object') {
+          const newPosts = result.posts || [];
+          const total = result.totalPages || 0;
+          setPosts(newPosts);
+          setTotalPages(total);
+        } else if (isActive) {
+          setError('Invalid data received from server.');
+          console.error('Invalid data format:', result);
+        }
       } catch (err) {
-        setError('Failed to load blog posts. Please try again later.');
-        console.error('Blog fetch error:', err);
+        if (isActive) {
+          setError('Failed to load blog posts. Please try again later.');
+          console.error('Blog fetch error:', err);
+        }
       } finally {
-        setIsLoading(false);
+        if (isActive) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchPosts();
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isActive = false;
+    };
   }, [currentPage]);
+
+  // Add a safety check at the component level
+  if (typeof window === 'undefined') {
+    return null; // Return null during server-side rendering
+  }
 
   return (
     <div className="min-h-screen pt-32 pb-16">
@@ -66,16 +92,16 @@ const BlogPage = () => {
           </div>
         ) : (
           <>
-            {posts.length > 0 ? (
+            {posts && posts.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
                 {posts.map((post) => (
                   <motion.div
-                    key={post.id}
+                    key={post?.id || Math.random().toString()}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5 }}
                   >
-                    <BlogCard post={post} />
+                    {post ? <BlogCard post={post} /> : null}
                   </motion.div>
                 ))}
               </div>
