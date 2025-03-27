@@ -8,15 +8,29 @@ import { mkdir, writeFile } from 'fs/promises';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Validate environment variables
+if (!process.env.NOTION_TOKEN || !process.env.NOTION_DATABASE_ID) {
+  console.error('❌ Missing required environment variables:');
+  if (!process.env.NOTION_TOKEN) console.error('   - NOTION_TOKEN');
+  if (!process.env.NOTION_DATABASE_ID) console.error('   - NOTION_DATABASE_ID');
+  process.exit(1);
+}
+
 const BLOG_DIR = path.join(__dirname, '../src/content/blog');
 const PUBLIC_DIR = path.join(__dirname, '../public');
 const POSTS_JSON_PATH = path.join(PUBLIC_DIR, 'blog-posts.json');
 
+console.log('🔄 Starting Notion blog post sync...');
+console.log(`📁 Blog directory: ${BLOG_DIR}`);
+console.log(`📄 Posts JSON path: ${POSTS_JSON_PATH}`);
+
 if (!fs.existsSync(BLOG_DIR)) {
+  console.log(`📁 Creating blog directory: ${BLOG_DIR}`);
   fs.mkdirSync(BLOG_DIR, { recursive: true });
 }
 
 if (!fs.existsSync(PUBLIC_DIR)) {
+  console.log(`📁 Creating public directory: ${PUBLIC_DIR}`);
   fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 }
 
@@ -29,6 +43,8 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchPosts() {
   try {
+    console.log('📚 Fetching posts from Notion database...');
+
     // Get existing posts to compare
     const existingPosts = new Map();
     try {
@@ -41,6 +57,7 @@ async function fetchPosts() {
           }
         });
       }
+      console.log(`📝 Found ${existingPosts.size} existing posts`);
     } catch (err) {
       console.warn('Warning: Could not read existing posts:', err);
     }
@@ -48,6 +65,7 @@ async function fetchPosts() {
     // Array to store processed posts for JSON
     const processedPosts = [];
 
+    console.log('🔍 Querying Notion database...');
     const response = await notion.databases.query({
       database_id: process.env.NOTION_DATABASE_ID,
       filter: {
@@ -69,6 +87,8 @@ async function fetchPosts() {
       page_size: 100
     });
 
+    console.log(`✨ Found ${response.results.length} published posts`);
+
     for (const page of response.results) {
       // Add delay between processing each post to avoid rate limits
       await delay(500);
@@ -76,15 +96,20 @@ async function fetchPosts() {
         // Safely extract properties with fallbacks
         const properties = page.properties || {};
         const title = properties?.Title?.title?.[0]?.plain_text || 'Untitled';
-        const slug = properties.Slug?.rich_text?.[0]?.plain_text || 
+        const slug = (properties.Slug?.type === 'text' && properties.Slug.text?.[0]?.plain_text) ||
+          (properties.Slug?.rich_text?.[0]?.plain_text) ||
           title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
         const publishedDate = properties['Published Date']?.date?.start;
         const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
         
+        console.log(`📄 Processing post: "${title}" (${slug})`);
+
         const blocks = await notion.blocks.children.list({
           block_id: page.id
         });
         
+        console.log(`   Found ${blocks.results.length} content blocks`);
+
         const content = await Promise.all(blocks.results.map(async (block) => {
           // Add small delay between block processing
           await delay(100);
@@ -137,6 +162,7 @@ ${post.content}`;
         // Only write if content has changed
         const existingContent = existingPosts.get(slug);
         if (!existingContent || existingContent !== markdown) {
+          console.log(`   💾 Saving updated content for "${title}"`);
           // Create backup before writing
           if (fs.existsSync(filePath)) {
             const backupPath = path.join(BLOG_DIR, '.backups');
@@ -149,9 +175,8 @@ ${post.content}`;
 
           // Write new content
           fs.writeFileSync(filePath, markdown, 'utf8');
-          console.log(`Updated: ${filePath}`);
         } else {
-          console.log(`No changes for: ${slug}`);
+          console.log(`   ⏭️ No changes detected for "${title}"`);
         }
 
         // Add processed post to array for JSON
@@ -176,13 +201,18 @@ ${post.content}`;
     // Write processed posts to JSON file
     await writeFile(
       POSTS_JSON_PATH,
-      JSON.stringify({ posts: processedPosts }, null, 2),
+      JSON.stringify({ 
+        posts: processedPosts,
+        lastUpdated: new Date().toISOString()
+      }, null, 2),
       'utf8'
     );
-    console.log(`Generated static blog posts JSON at ${POSTS_JSON_PATH}`);
+    console.log(`✅ Successfully generated blog posts JSON with ${processedPosts.length} posts`);
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('❌ Error during post processing:', error);
     process.exit(1);
   }
 }
+
+fetchPosts();
