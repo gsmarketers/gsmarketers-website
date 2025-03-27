@@ -133,7 +133,7 @@ async function fetchPosts() {
         
         const content = await Promise.all(blocks.map(async (block) => {
           // Add small delay between block processing
-          await delay(200); // Increased delay to 200ms
+          await delay(200);
           
           try {
             switch (block.type) {
@@ -150,7 +150,7 @@ async function fetchPosts() {
               case 'numbered_list_item':
                 return '1. ' + block.numbered_list_item.rich_text.map((text) => text.plain_text).join('') + '\n';
               case 'code':
-                return '```\n' + block.code.rich_text.map((text) => text.plain_text).join('') + '\n```\n\n';
+                return '```\n' + block.code.rich_text.map((text) => text.plain_text).join('') + '\n``\n\n';
               case 'quote':
                 return '> ' + block.quote.rich_text.map((text) => text.plain_text).join('') + '\n\n';
               case 'image':
@@ -175,12 +175,15 @@ async function fetchPosts() {
           }
         }));
 
+        // Clean up content by removing extra newlines and empty lines
+        const cleanedContent = content.join('').replace(/\n\n+/g, '\n\n').trim();
+
         const post = {
           title: extractedTitle,
           date: publishedDate || page.created_time,
           thumbnail,
           lastEdited: page.last_edited_time,
-          content: content.join('')
+          content: cleanedContent
         };
 
         const filePath = path.join(BLOG_DIR, `${slug}.md`);
