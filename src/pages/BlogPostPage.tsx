@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { getPost, type NotionPost } from '@/lib/notion';
 import { formatDate } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { ArrowLeft, Calendar, User2 } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 
@@ -110,6 +111,36 @@ const BlogPostPage = () => {
           )}
 
           <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              // Allow raw HTML (e.g., for <details><summary> tags)
+              details: ({ children }) => <details>{children}</details>,
+              summary: ({ children }) => <summary>{children}</summary>,
+              // Custom styles for other elements
+              p: ({ node, ...props }) => <p className="mb-4 text-white/80 leading-relaxed" {...props} />,
+              a: ({ node, ...props }) => (
+                <a
+                  {...props}
+                  className="text-cyan-400 no-underline hover:underline"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                />
+              ),
+              code: ({ node, inline, className, children, ...props }) => {
+                const match = /language-(\w+)/.exec(className || '');
+                return !inline ? (
+                  <pre className="bg-white/5 p-4 rounded-lg overflow-x-auto">
+                    <code className={className} {...props}>
+                      {children}
+                    </code>
+                  </pre>
+                ) : (
+                  <code className="text-cyan-400" {...props}>
+                    {children}
+                  </code>
+                );
+              },
+            }}
             className="prose prose-invert prose-cyan max-w-none
                      prose-headings:text-white prose-headings:font-semibold
                      prose-p:text-white/80 prose-p:leading-relaxed
