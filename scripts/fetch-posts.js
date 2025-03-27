@@ -35,7 +35,8 @@ if (!fs.existsSync(PUBLIC_DIR)) {
 }
 
 const notion = new Client({
-  auth: process.env.NOTION_TOKEN
+  auth: process.env.NOTION_TOKEN,
+  notionVersion: '2022-06-28'
 });
 
 // Helper function to add delay between API calls
@@ -46,17 +47,35 @@ async function fetchAllBlocks(block_id) {
   let nextCursor = null;
 
   do {
-    const response = await notion.blocks.children.list({
-      block_id,
-      start_cursor: nextCursor || undefined,
-      page_size: 100
-    });
-    
-    results = [...results, ...response.results];
-    nextCursor = response.next_cursor;
+    try {
+      const response = await notion.blocks.children.list({
+        block_id,
+        start_cursor: nextCursor || undefined,
+        page_size: 100
+      });
+      
+      results = [...results, ...response.results];
+      nextCursor = response.next_cursor;
+    } catch (error) {
+      console.error(`Error fetching blocks for ${block_id}:`, error);
+      throw error;
+    }
   } while (nextCursor);
 
   return results;
+}
+
+async function fetchPageProperties(page_id, property_name) {
+  try {
+    const response = await notion.pages.properties.retrieve({
+      page_id,
+      property_id: property_name
+    });
+    return response;
+  } catch (error) {
+    console.error(`Error fetching property ${property_name} for page ${page_id}:`, error);
+    return null;
+  }
 }
 
 async function fetchPosts() {
@@ -109,9 +128,10 @@ async function fetchPosts() {
 
     for (const page of response.results) {
       // Add delay between processing each post to avoid rate limits
-      await delay(1000); // Increased delay to 1 second
+      await delay(1000);
       let extractedTitle = '';
       try {
+        // Fetch all blocks for the page
         const blocks = await fetchAllBlocks(page.id);
         
         console.log(`   Found ${blocks.length} content blocks`);
@@ -124,10 +144,15 @@ async function fetchPosts() {
           ? pageContent.map(text => text.plain_text).join('')
           : 'Untitled';
         
-        const slug = properties.Slug?.rich_text?.[0]?.plain_text || 
+        // Get full property values for properties that might exceed 25 references
+        const slugProperty = await fetchPageProperties(page.id, 'Slug');
+        const dateProperty = await fetchPageProperties(page.id, 'Published Date');
+        const thumbnailProperty = await fetchPageProperties(page.id, 'Thumbnail');
+
+        const slug = slugProperty?.rich_text?.[0]?.plain_text || 
           extractedTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-        const publishedDate = properties['Published Date']?.date?.start;
-        const thumbnail = properties.Thumbnail?.files?.[0]?.file?.url;
+        const publishedDate = dateProperty?.date?.start;
+        const thumbnail = thumbnailProperty?.files?.[0]?.file?.url;
         
         console.log(`📄 Processing post: "${extractedTitle}" (${slug})`);
         
@@ -239,6 +264,7 @@ ${post.content}`;
           slug,
           title: post.title,
           content: post.content,
+          processedContent: post.processedContent,
           thumbnail: post.thumbnail,
           date: post.date,
           lastEdited: post.lastEdited
@@ -247,27 +273,27 @@ ${post.content}`;
 
       } catch (error) {
         console.error(`Error processing post ${page.id}:`, error);
-        // Continue with next post instead of failing completely
-        console.log('Skipping post due to error');
+        console.error('Skipping this post due to error');
         continue;
       }
     }
-    
-    // Write processed posts to JSON file
-    console.log('Final processedPosts:', JSON.stringify(processedPosts, null, 2));
-    await writeFile(
-      POSTS_JSON_PATH,
-      JSON.stringify({ 
-        posts: processedPosts,
-        lastUpdated: new Date().toISOString()
-      }, null, 2),
-      'utf8'
-    );
+
+    // Write the JSON file
+    if (!fs.existsSync(PUBLIC_DIR)) {
+      fs.mkdirSync(PUBLIC_DIR, { recursive: true });
+    }
+
+    const postsJson = {
+      posts: processedPosts,
+      lastUpdated: new Date().toISOString()
+    };
+
+    fs.writeFileSync(POSTS_JSON_PATH, JSON.stringify(postsJson, null, 2), 'utf8');
     console.log(`✅ Successfully generated blog posts JSON with ${processedPosts.length} posts`);
 
   } catch (error) {
-    console.error('❌ Error during post processing:', error);
-    process.exit(1);
+    console.error('❌ Error in fetchPosts:', error);
+    throw error;
   }
 }
 
