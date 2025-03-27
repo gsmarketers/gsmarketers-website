@@ -237,20 +237,27 @@ async function fetchPosts() {
                 return `> ${toggleText}\n\n`;
               case 'table':
                 try {
-                  const rows = block.table.children.map((row) => {
+                  // Get the table's children (rows)
+                  const rows = block.children || [];
+                  const formattedRows = rows.map((row) => {
                     if (!row?.table_row?.cells) return '';
                     return row.table_row.cells.map((cell) => {
-                      if (!cell) return '';
-                      if (!Array.isArray(cell)) return '';
-                      return cell.map((text) => text.plain_text).join('')
-                    }).join(' | ')
+                      if (!cell || !Array.isArray(cell)) return '';
+                      return cell.map((text) => text.plain_text).join('');
+                    }).join(' | ');
                   }).filter(Boolean); // Remove empty rows
-                  return rows.join('\n') + '\n\n';
+                  
+                  // Add table headers with markdown formatting
+                  if (formattedRows.length > 0) {
+                    const header = formattedRows[0];
+                    const separator = formattedRows[0].split(' | ').map(() => '---').join(' | ');
+                    return `${header}\n${separator}\n${formattedRows.slice(1).join('\n')}\n\n`;
+                  }
+                  return '';
                 } catch (error) {
                   console.error(`Error processing table block ${block.id}:`, error);
                   return '';
                 }
-
               case 'table_row':
                 return block.table_row.cells.map((cell) => {
                   if (!cell) return '';
