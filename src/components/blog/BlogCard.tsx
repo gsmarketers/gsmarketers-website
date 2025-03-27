@@ -37,8 +37,8 @@ export function BlogCard({ post }: BlogCardProps) {
           </h2>
           
           <div className="text-white/70 line-clamp-3 mb-4">
-            {post.content ? 
-              post.content.split('\n')[0] || 'No content available' 
+            {post.processedContent ? 
+              post.processedContent.split('<br><br>')[0] || 'No content available' 
               : 'No content available'}
           </div>
           
